@@ -49,7 +49,7 @@ Definition fc1 := to_list (n:=(M (proj1_sig fixed_code))) (C (proj1_sig fixed_co
 
 Extraction Language Ocaml.
 
-Recursive Extraction fc1.
+Recursive Extraction fc1. (* Fails *)
 
 Definition quicksort_nat (L : list nat) : list nat.
 assert({L' | (forall x, In x L <-> In x L') /\ Sorted le L'}).
