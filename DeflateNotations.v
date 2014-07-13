@@ -7,11 +7,11 @@ Notation ll := List.length.
 Notation Bnil := (nil (A := bool)).
 Notation VecLB := (vec LB).
 
-Notation Vnth := VectorDef.nth.
+Notation Vnth := Vector.nth.
 
 Notation Vnil := Vector.nil.
 Notation Vcons := Vector.cons.
-Notation Vmap := VectorDef.map.
+Notation Vmap := Vector.map.
 
 Notation fin_rect2 := Fin.rect2.
 Notation FS_inj := Fin.FS_inj.

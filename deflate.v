@@ -47,7 +47,7 @@ Defined.
 
 Definition fc1 := to_list (n:=(M (proj1_sig fixed_code))) (C (proj1_sig fixed_code)).
 
-Extraction Language Ocaml.
+Extraction Language Haskell.
 
 Recursive Extraction fc1. (* Fails *)
 
