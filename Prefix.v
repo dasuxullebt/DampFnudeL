@@ -158,94 +158,76 @@ Lemma prefix_common : forall a b c, prefix a c -> prefix b c ->
 Proof.
   refine (fix pc a b c ac bc :=
             match (a, b, c) as A return ((a, b, c) = A -> _) with
-              | (nil, b, _) => fun eq => _
+              | (nil, _, _) => fun eq => _
               | (xa :: xA, nil, _) => fun eq => _
-              | (xa :: nil, xb :: xB, _) => fun eq => _
-              | (xa :: ya :: xA, xb :: nil, _) => fun eq => _
-              | (xa :: ya :: xA, xb :: yb :: xB, nil) => fun eq => _
-              | (xa :: ya :: xA, xb :: yb :: xB, xc :: nil) => fun eq => _
-              | (xa :: ya :: xA, xb :: yb :: xB, xc :: yc :: xC) => fun eq => _
+              | (xa :: xA, xb :: xB, nil) => fun eq => _
+              | (xa :: xA, xb :: xB, xc :: xC) => fun eq => _
             end eq_refl).
+
   inversion eq.
   apply inl.
   exists b.
   auto.
+
   inversion eq.
   apply inr.
-  exists (xa :: Bnil).
+  exists (xa :: xA).
   apply app_nil_l.
 
-  inversion eq.
-  apply inl.
-  exists xB.
-  inversion ac.
-  inversion bc.
+  exfalso.
+  inversion eq. subst.
+  eapply prefix_nnil; eauto.
 
-  rewrite <- H3 in H.
-  rewrite -> H0 in H.
-  rewrite -> H1 in H.
-  inversion H.
-  reflexivity.
-
-  apply inr.
-  inversion eq.
-  exists (xa :: b0 :: l2).
-  apply app_nil_l.
-
-  inversion eq.
-  apply inr.
-  inversion ac.
-  inversion bc.
-  rewrite <- H3 in H.
-  rewrite -> H0 in H.
-  rewrite -> H1 in H.
-  inversion H.
-  exists (ya :: xA).
-  reflexivity.
-
-  inversion eq.
-  inversion ac.
-  rewrite -> H0 in H.
-  rewrite -> H2 in H.
-  inversion H.
-  inversion eq.
-  inversion ac.
-  rewrite -> H2 in H.
-  rewrite -> H0 in H.
-  inversion H.
-
-  inversion eq.
+  inversion eq. subst.
+  assert (xa = xc).
+  { destruct ac as (xA',ac). simpl in *. now injection ac. }
+  assert (xb = xc).
+  { destruct bc as (xB',bc). simpl in *. now injection bc. }
   assert (rec : prefix xA xB + prefix xB xA).
-  apply pc with xC.
-  inversion ac.
-  rewrite -> H0 in H.
-  rewrite -> H2 in H.
+  { apply pc with xC; eapply prefix_cdr; eauto. }
+  destruct rec; [left|right]; subst; now apply prefix_cons.
+Defined.
+
+(* TODO: this should be in Prefix.v *)
+Lemma prefix_split : forall a b, prefix a b -> {c | a ++ c = b}.
+Proof.
+  refine (fix split a b pref :=
+            match a as A return (a = A -> _) with
+              | nil => fun eq => _
+              | (a' :: a'') => fun eq0 =>
+                                 match b as B return (b = B -> _) with
+                                     | nil => fun eq1 => _
+                                     | (b' :: b'') => fun eq1 => _
+                                 end eq_refl
+            end eq_refl).
+
+  exists b.
+  auto.
+
+  contradict pref.
+  rewrite -> eq0.
+  rewrite -> eq1.
+  intros Q.
+  inversion Q as [? H].
   inversion H.
-  exists x.
-  reflexivity.
-  inversion bc.
-  rewrite -> H1 in H.
-  rewrite -> H2 in H.
+
+  destruct (bool_dec a' b') as [yes | no].
+  rewrite -> yes.
+  destruct (split a'' b'') as [c' c''].
+  apply (prefix_cdr a' b').
+  rewrite <- eq0.
+  rewrite <- eq1.
+  trivial.
+  exists c'.
+  unfold app.
+  unfold app in c''.
+  rewrite -> c''.
+  auto.
+
+  contradict no.
+  inversion pref as [? H].
+  rewrite -> eq0 in H.
+  rewrite -> eq1 in H.
   inversion H.
-  exists x.
-  reflexivity.
-  inversion ac.
-  inversion bc.
-  rewrite <- H3 in H.
-  rewrite -> H0 in H.
-  rewrite -> H1 in H.
-  inversion H.
-  elim rec.
-  intros preab.
-  apply inl.
-  inversion preab.
-  exists x1.
-  rewrite <- H4.
-  reflexivity.
-  intros preba.
-  apply inr.
-  inversion preba.
-  exists x1.
-  rewrite <- H4.
   reflexivity.
 Defined.

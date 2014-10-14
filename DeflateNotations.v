@@ -7,6 +7,10 @@ Notation ll := List.length.
 Notation Bnil := (nil (A := bool)).
 Notation VecLB := (vec LB).
 
+Notation Byte := (vec bool 8).
+
+Notation LByte := (list Byte).
+
 Notation Vnth := Vector.nth.
 
 Notation Vnil := Vector.nil.

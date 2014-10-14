@@ -4,6 +4,8 @@ Require Import Program.
 Require Import Coq.Logic.ProofIrrelevance.
 Require Import Coq.Structures.Orders.
 Require Import DeflateNotations.
+Require Import Coq.Vectors.Fin.
+Require Import Omega.
 
 Lemma vec_0_nil : forall {A} (v : vec A 0%nat), v = Vnil A.
 Proof.
@@ -233,4 +235,42 @@ replace (symmetry eq_refl) with (eq_refl n).
 rewrite -> fin_id_destroy.
 reflexivity.
 apply proof_irrelevance.
+Defined.
+
+Lemma FinFS_succ_alt : forall {n} (x : fin n), (` (f_nat (FinFS x)) = S (` (f_nat x))).
+Proof.
+  intros.
+  simpl.
+  destruct (Fin.to_nat x).
+  auto.
+Defined.
+
+(* Todo: This should go to Transports.v *)
+Lemma of_nat_lt_inj : forall {o n m} (q : (n < o)%nat) (r : (m < o)%nat), of_nat_lt q = of_nat_lt r -> n = m.
+Proof.
+  induction o.
+  intros n m q.
+  inversion q.
+  induction n.
+  induction m.
+  auto.
+  intros q r quiek.
+  inversion quiek.
+  induction m.
+  intros q r quiek.
+  inversion quiek.
+  intros q r on.
+  f_equal.
+  assert (q' : (n < o)%nat).
+  omega.
+  assert (r' : (m < o)%nat).
+  omega.
+  apply (IHo _ _ q' r').
+  simpl in on.
+  replace (lt_S_n n o q) with q' in on.
+  replace (lt_S_n m o r) with r' in on.
+  apply FS_inj.
+  apply on.
+  apply proof_irrelevance.
+  apply proof_irrelevance.
 Defined.

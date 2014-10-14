@@ -555,7 +555,7 @@ Proof.
   induction l.
   contradict nn0.
   reflexivity.
-  assert(tmp1:list_maxlen(a::l)=max(ll a)(list_maxlen l)).
+  assert(tmp1:list_maxlen(a::l) = max (ll a) (list_maxlen l)).
   reflexivity.
   rewrite -> tmp1.
   destruct a.
@@ -698,6 +698,7 @@ Proof.
   inversion lxly.
   elim (bool_dec x' y').
   intros xyeq.
+  rewrite -> eq.
   rewrite <- xyeq.
   assert (ll_rec : (ll (x' :: y'') - ll (x' :: x'') = ll y'' - ll x'')%nat).
   auto.
@@ -723,6 +724,7 @@ Proof.
   rewrite -> eq in llx.
   inversion llx.
   destruct y'.
+  rewrite -> eq.
   apply car_lex.
   contradict x_neq_y.
   reflexivity.
@@ -744,6 +746,7 @@ Proof.
   inversion lxly.
   assert (tmp1 : (ll (y' :: y'') - ll (x' :: x'') = ll y'' - ll x'')%nat).
   reflexivity.
+  rewrite -> eq.
   rewrite -> tmp1.
   assert (tmp2 : ll ((x' :: x'') ++ repeat (ll y'' - ll x'') false) = S (ll (x'' ++ repeat (ll y'' - ll x'') false))).
   reflexivity.
@@ -1134,7 +1137,7 @@ Proof.
   assert (dc: {n | ~ Q (Vnth e n)} + ({n | ~ Q (Vnth e n)} -> False)).
   apply (dec_in_dec _ (fun n => ~ Q n)).
   intros a.
-  elim (H a).
+  elim (X a).
   intros Qa.
   apply inr. auto.
   intros nQa.
@@ -1151,7 +1154,7 @@ Proof.
   apply inl.
   apply forall_notexists.
   intros a.
-  apply H.
+  apply X.
   apply nex.
 Defined.
 

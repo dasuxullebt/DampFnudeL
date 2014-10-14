@@ -1019,7 +1019,7 @@ Proof.
   apply b1_lt_a1.
 Defined.
 
-Lemma sorting_rmdup : forall n L, Sorted (fun x y => ((x = y) + (mys (n:=n) x y))%type) L ->
+Lemma sorting_rmdup : forall n L, Sorted (fun x y => ((x = y) \/ (mys (n:=n) x y))%type) L ->
                                   Sorted mys (rmdup L).
 Proof.
   intros n L.
@@ -1064,7 +1064,7 @@ Theorem sorting : forall {n} (L : list (fin n * nat)),
                     {L' | StronglySorted mys L' /\ forall x, In x L <-> In x L'}.
   Proof.
     intros n L.
-    assert (xL : {L' | (forall x, In x L <-> In x L') /\ Sorted (fun x y => ((x = y) + (mys x y))%type) L'}).
+    assert (xL : {L' | (forall x, In x L <-> In x L') /\ Sorted (fun x y => ((x = y) \/ (mys x y))%type) L'}).
     apply Quicksort.quicksort.
     intros a b.
 
@@ -1073,15 +1073,15 @@ Theorem sorting : forall {n} (L : list (fin n * nat)),
     elim eq_mysab.
     intros a_eq_b.
     apply left.
-    apply inl.
+    apply or_introl.
     apply a_eq_b.
     intros mysab.
     apply left.
-    apply inr.
+    apply or_intror.
     apply mysab.
     intros mysba.
     apply right.
-    apply inr.
+    apply or_intror.
     apply mysba.
 
     elim xL.
@@ -1109,7 +1109,7 @@ Theorem sorting : forall {n} (L : list (fin n * nat)),
     apply inrmdup.
 Defined.
 
-Lemma existance_sorting_S : forall {A} a (b : A) c f,
+Lemma existence_sorting_S : forall {A} a (b : A) c f,
                               StronglySorted f ((rev (b :: a)) ++ c) -> StronglySorted (fun x y => f y x) (b :: a).
 Proof.
 intros A a b c f H.
@@ -1124,7 +1124,7 @@ apply r1.
 apply rev_involutive.
 Defined.
 
-Lemma existance_disjunction_lemma : forall A B, A \/ B -> ~ A -> B.
+Lemma existence_disjunction_lemma : forall A B, A \/ B -> ~ A -> B.
 Proof.
   intros A B vel notA.
   elim vel.
@@ -1134,7 +1134,7 @@ Proof.
   auto.
 Defined.
 
-Lemma existance_sorting_In : forall {A} a b c (f : A -> A -> Prop), StronglySorted f (a :: b) -> In c b -> f a c.
+Lemma existence_sorting_In : forall {A} a b c (f : A -> A -> Prop), StronglySorted f (a :: b) -> In c b -> f a c.
 Proof.
   intros A a. 
   induction b.
@@ -1147,7 +1147,7 @@ Proof.
   auto.
 Defined.
 
-Lemma existance_sorting_In_split : forall {A} a b c d (f : A -> A ->
+Lemma existence_sorting_In_split : forall {A} a b c d (f : A -> A ->
 Prop), StronglySorted f (a ++ b) -> In c a -> In d b -> f c d.
 Proof.
   intros A a b c d f H ca cb.
@@ -1170,7 +1170,7 @@ Proof.
   auto.
 Defined.
 
-Lemma existance_lex_lemma : forall a m p, lex p m -> prefix a m -> ~ prefix a p -> lex p a.
+Lemma existence_lex_lemma : forall a m p, lex p m -> prefix a m -> ~ prefix a p -> lex p a.
 Proof.
   refine (fix f a m p :=
             match (a, m, p) as R return ((a, m, p) = R -> _) with
@@ -1238,7 +1238,7 @@ reflexivity.
 Defined.
 
 
-Lemma existance : forall n (f : vec nat n),
+Lemma existence : forall n (f : vec nat n),
                     kraft_nvec f <= 1 ->
                     { D : deflateCoding | {eq : M D = n | f = (Vmap (ll(A:=bool)) (vec_id(A:=LB) eq (C D)))}}.
 intros n f kraft.
@@ -1262,8 +1262,6 @@ apply LinL'.
 apply L'_asc.
 apply vfmo.
 
-(* Set Printing All. *)
-
 assert (DDD : {d : deflateCoding | M d = n /\ forall q, cd d q = Bnil}).
 apply nullCoding.
 elim DDD.
@@ -1271,7 +1269,7 @@ intros ddd dex.
 elim dex.
 intros mdn allnil.
 
-(* for the meanings, see deflate.pdf *)
+(* for the meanings, see deflate.pdf -- TODO *)
 refine ((fix complicated (R S L : list (fin n * nat))
              x (xeq : x = f) (* TODO: Hack *)
              (Lasc : forall m o, In (m, o) L <-> Vnth x m = o)
@@ -1398,7 +1396,7 @@ inversion H.
 apply in_eq.
 apply H.
 assert (sS' : StronglySorted (fun x y => mys y x) ((n, 0%nat) :: S)).
-apply (existance_sorting_S _ (n,0%nat) R').
+apply (existence_sorting_S _ (n,0%nat) R').
 rewrite <- inv2'.
 apply sL.
 assert (inv3' : (((n, 0%nat) :: S = [ ]) +
@@ -1415,7 +1413,7 @@ apply pair_dec.
 elim indec.
 intros inS.
 assert (mys (q0, ll (Vnth (vec_id c_m (C c)) q0)) (n, 0%nat)).
-apply (existance_sorting_In _ S _ (fun x y => mys y x)).
+apply (existence_sorting_In _ S _ (fun x y => mys y x)).
 apply sS'.
 apply inS.
 inversion H.
@@ -1733,14 +1731,14 @@ rewrite -> eq.
 apply cons_rev.
 
 assert (sS' : StronglySorted (fun x y => mys y x) ((n, Datatypes.S m) :: S)).
-apply (existance_sorting_S _ _ R').
+apply (existence_sorting_S _ _ R').
 rewrite <- inv2'.
 auto.
 
 assert (lemma1 : forall p q, In (p, q) S'' -> q = 0%nat).
 intros p2 q inp2q.
 assert (H:(fun x y => mys y x) (p, 0%nat) (p2, q)).
-apply (existance_sorting_In (p, 0%nat)  S'' (p2, q)).
+apply (existence_sorting_In (p, 0%nat)  S'' (p2, q)).
 rewrite <- eq2.
 apply sS.
 auto.
@@ -1977,7 +1975,7 @@ assert (msqn : mys (q, Vnth x q) (p, 0%nat)).
 assert (sSSS : StronglySorted (fun x y : fin n0 * nat => mys y x) ((p, 0%nat) :: S'')).
 rewrite <- eq2.
 auto.
-apply (existance_sorting_In (p, 0%nat) S'' (q, Vnth x q) (fun x y => mys y x) sSSS inSSS).
+apply (existence_sorting_In (p, 0%nat) S'' (q, Vnth x q) (fun x y => mys y x) sSSS inSSS).
 inversion msqn.
 auto.
 inversion H0.
@@ -2064,11 +2062,11 @@ apply cons_rev_1.
 rewrite <- app_assoc.
 auto.
 assert (H : mys (p, Datatypes.S ms) (n3, r)).
-apply (existance_sorting_In _ R).
+apply (existence_sorting_In _ R).
 apply sRx.
 apply NR.
 assert (H1 : mys (p, Datatypes.S ms) (n, Datatypes.S m)).
-apply (existance_sorting_In _ R).
+apply (existence_sorting_In _ R).
 apply sRx.
 rewrite -> eq.
 apply in_eq.
@@ -2082,7 +2080,7 @@ rewrite <- inv2.
 apply sL.
 auto.
 assert (mys (n3, q) (n, Datatypes.S m)).
-apply (existance_sorting_In_split (rev S) [(n, Datatypes.S m)]).
+apply (existence_sorting_In_split (rev S) [(n, Datatypes.S m)]).
 rewrite <- cons_rev_1.
 apply sSx.
 apply in_rev.
@@ -2090,10 +2088,10 @@ rewrite -> rev_involutive.
 apply NQ.
 apply in_eq.
 assert (mys (n3, q) (p, Datatypes.S ms)).
-apply (existance_sorting_In _ S'' _ (fun x y => mys y x)).
+apply (existence_sorting_In _ S'' _ (fun x y => mys y x)).
 rewrite <- eq2.
 auto.
-apply (existance_disjunction_lemma ((p, Datatypes.S ms) = (n3, q))).
+apply (existence_disjunction_lemma ((p, Datatypes.S ms) = (n3, q))).
 apply in_inv.
 rewrite <- eq2.
 apply NQ.
@@ -2371,7 +2369,7 @@ apply b.
 elim H.
 intros m0 m0_ex.
 
-(* todo: oben schon mal bewiesen *)
+(* todo: already proved before *)
 assert (sRx : StronglySorted mys ((p, Datatypes.S ms) :: R)).
 apply (sorting_app (rev S'')).
 replace (rev S'' ++ (p, Datatypes.S ms) :: R) with ((rev S'' ++ [(p, Datatypes.S ms)]) ++ R).
@@ -2384,7 +2382,7 @@ rewrite <- app_assoc.
 auto.
 
 assert (lemma2 : mys (p, Datatypes.S ms) (n, Datatypes.S m)).
-apply (existance_sorting_In _ R).
+apply (existence_sorting_In _ R).
 apply sRx.
 rewrite -> eq.
 apply in_eq.
@@ -2535,7 +2533,7 @@ rewrite -> a_eq_p.
 apply le_refl.
 intros a_neq_p.
 assert (mys (a, ll (Vnth (vec_id c_m (C c)) a)) (p, ll (Vnth (vec_id c_m (C c)) p))).
-apply (existance_sorting_In _ S'' _ (fun x y => mys y x)).
+apply (existence_sorting_In _ S'' _ (fun x y => mys y x)).
 rewrite -> (lemma3 p (Datatypes.S ms)).
 rewrite <- eq2.
 auto.
@@ -2596,7 +2594,7 @@ apply bnil.
 auto.
 intros npref.
 assert (nlex : lex (Vnth (vec_id c_m (C c)) p) (Vnth (vec_id c_m (C c)) a)).
-apply (existance_lex_lemma _ m0).
+apply (existence_lex_lemma _ m0).
 apply m0_ex.
 apply pref2.
 apply npref.
@@ -2664,7 +2662,7 @@ rewrite -> quark.
 auto.
 intros b_neq_p.
 apply (mys_trans _ (p, Datatypes.S ms)).
-apply (existance_sorting_In _ S'' _ (fun x y => mys y x)).
+apply (existence_sorting_In _ S'' _ (fun x y => mys y x)).
 rewrite <- eq2.
 auto.
 assert (ininv: (p, Datatypes.S ms) = (b, ll (Vnth (vec_id c_m (C c)) b)) \/ In (b, ll (Vnth (vec_id c_m (C c)) b)) S'').
@@ -2779,7 +2777,7 @@ rewrite -> b_eq_p.
 apply mys'.
 intros b_neq_p.
 apply (mys_trans _ (p, Datatypes.S ms)).
-apply (existance_sorting_In _ S'' _ (fun x y => mys y x)).
+apply (existence_sorting_In _ S'' _ (fun x y => mys y x)).
 rewrite <- eq2.
 auto.
 assert (ininv : (p, Datatypes.S ms) = (b, ll (Vnth c' b)) \/ In (b, ll (Vnth c' b)) S'').
@@ -3162,7 +3160,7 @@ rewrite <- eq.
 apply inv2.
 
 assert (sS' : StronglySorted (fun x y => mys y x) ((n, Datatypes.S m)::S)).
-apply (existance_sorting_S _ (n,Datatypes.S m) R').
+apply (existence_sorting_S _ (n,Datatypes.S m) R').
 rewrite -> cons_rev.
 rewrite <- eq.
 rewrite <- inv2.

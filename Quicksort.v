@@ -28,7 +28,7 @@ Lemma quicksort_conc_lemma : forall {A : Set}
 Proof.
   intros A ord a b c H H0 H1.
   induction a as [|a a0 IHa];
-  auto. 
+  auto.
   apply Sorted_cons. 
   apply IHa.
   inversion H.

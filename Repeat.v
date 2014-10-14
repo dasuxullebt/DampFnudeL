@@ -307,10 +307,12 @@ Proof.
   exists (b0 :: y).
   auto.
   exists (x' :: x'').
+  rewrite -> eq.
   auto.
   intros eq2.
   rewrite -> eq in qf1.
   rewrite -> eq2 in qf1.
+  rewrite -> eq2.
   inversion qf1.
   inversion H.
   assert (pref : prefix y'' x'').
