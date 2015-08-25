@@ -3,21 +3,26 @@ Require Import Coq.Arith.Arith.
 Require Import Coq.QArith.Qfield.
 Require Import Lex.
 Require Import Prefix.
-Require Import DeflateNotations.
-Require Import Program.
+Require Import Shorthand.
 
 Local Open Scope nat.
 
-Fixpoint repeat (n : nat) (b : bool) : LB :=
+(*Fixpoint repeat (n : nat) (b : bool) : LB :=
   match n with
       | 0 => nil
       | S n' => b :: (repeat n' b)
   end.
 
+Todo: merge with repeat.v *)
+Fixpoint repeat {A} (n : nat) (a : A) : list A :=
+  match n with
+    | 0 => nil
+    | (S n) => a :: repeat n a
+  end.
 
-Lemma rep_length : forall n b, ll (repeat n b) = n.
+Lemma rep_length : forall {A} n (b : A), ll (repeat n b) = n.
 Proof.
-  intros n b.
+  intros A n b.
   induction n.
   compute.
   auto.
@@ -29,8 +34,9 @@ Proof.
   auto.
 Qed.
 
-Lemma repeat_add : forall n m b, (repeat n b) ++ (repeat m b) = (repeat (n + m) b).
+Lemma repeat_add : forall {A} n m (b : A), (repeat n b) ++ (repeat m b) = (repeat (n + m) b).
 Proof.
+  intro A.
   induction n.
   intros m b.
   compute.
@@ -47,12 +53,12 @@ Proof.
   auto.
 Qed.
 
-
-Lemma repeat_S : forall l n b, prefix l (repeat n b) -> prefix l (repeat (S n) b).
+Lemma repeat_S : forall {A} l n (b : A), prefix l (repeat n b) -> prefix l (repeat (S n) b).
 Proof.
+  intro A.
   induction n.
   intros b H.
-  replace l with (nil : list bool).
+  replace l with (nil : list A).
   compute.
   exists (b :: nil).
   auto.
@@ -80,9 +86,10 @@ Proof.
   apply plus_comm.
 Qed.
 
-Lemma repeat_inc : forall l n m b, prefix l (repeat n b) -> m >= n -> prefix l (repeat m b).
+Lemma repeat_inc : forall {A} l n m (b : A),
+                     prefix l (repeat n b) -> m >= n -> prefix l (repeat m b).
 Proof.
-  intros l n m b H H0.
+  intros A l n m b H H0.
   assert (m = n + (m - n)).
   apply le_plus_minus.
   trivial.
@@ -97,7 +104,7 @@ Proof.
   apply repeat_add.
 Qed.
 
-Lemma repeat_cdr : forall a b l n,  prefix (a :: l) (repeat n b) -> prefix l (repeat n b).
+Lemma repeat_cdr : forall {A} (a : A) b l n,  prefix (a :: l) (repeat n b) -> prefix l (repeat n b).
 Proof.
   induction n.
   intros H.
@@ -113,8 +120,8 @@ Proof.
   auto.
 Qed.
 
-Lemma rep_prefix : forall b l, (exists n, prefix l (repeat n b)) ->
-                               l = repeat (ll l) b.
+Lemma rep_prefix : forall {A} (b : A) l, (exists n, prefix l (repeat n b)) ->
+                                         l = repeat (ll l) b.
 Proof.
 induction l.
 intros H.
@@ -161,65 +168,49 @@ auto.
 auto.
 Qed.
 
-Lemma rep_prefix_1 : forall n l, l <> nil -> prefix l (false :: (repeat n true)) ->
-                                 l = false :: (repeat (pred (ll l)) true).
+Lemma rep_prefix_1 : forall {A} (a b : A) n l, l <> nil -> prefix l (a :: (repeat n b)) ->
+                                               l = a :: (repeat (pred (ll l)) b).
 Proof.
-intros n l H H0.
-induction l. 
+intros A a b n l H H0.
+induction l.
 contradict H.
 auto.
-inversion H0.
-inversion H1.
+inversion H0 as [H1 H2].
+inversion H2.
 f_equal.
+replace (ll (a :: l)) with (S (ll l)).
+unfold pred.
 apply rep_prefix.
 exists n.
-exists x.
+exists H1.
 trivial.
+reflexivity.
 Qed.
 
-Lemma prefix_repeat : forall a b n, prefix a (repeat n b) -> a = repeat (ll a) b.
+Lemma prefix_repeat : forall {A} a (b : A) n, prefix a (repeat n b) -> a = repeat (ll a) b.
 Proof.
-  intros a b n H.
+  intro A.
   induction a.
-  auto.
-  replace (ll (a :: a0)) with (S (ll a0)).
-  replace (repeat (S (ll a0)) b) with (b :: repeat (ll a0) b).
-  induction a.
-  induction b.
-  f_equal.
-  apply IHa.
-  apply (repeat_cdr true).
-  trivial.
-  contradict H.
-  intros Q.
+  intro b.
   induction n.
-  inversion Q.
-  inversion H.
-  contradict Q.
-  replace (repeat (S n) false) with (false :: repeat n false).
-  intros Q.
-  inversion Q.
-  inversion H.
   auto.
-  induction b.
-  contradict H.
-  intros Q.
-  induction n.
-  inversion Q.
-  inversion H.
-  contradict Q.
-  replace (repeat (S n) true) with (true :: repeat n true).
-  intros Q.
-  inversion Q.
-  inversion H.
   auto.
+  intro b.
+  destruct n as [|n].
+  intro Q.  
+  destruct Q as [pr1 pr2].
+  compute in pr2.
+  inversion pr2.
+  intros Q.
+  destruct Q as [pr1 pr2].
+  inversion pr2 as [ab].
+  compute in pr2.
+  compute.
   f_equal.
-  apply IHa.
-  apply (repeat_cdr false).
+  apply IHa with n.
+  exists pr1.
   trivial.
-  auto.
-  auto.
-Qed.
+Qed.  
 
 Lemma lex_0_x : forall x, lex (repeat (ll x) false) x.
 Proof.
@@ -283,36 +274,34 @@ Proof.
   auto.
 Qed.
 
-Lemma prefix_ext : forall a b c,
+Lemma prefix_ext : forall {A} (a b c : list A),
                      prefix a (b ++ c) -> ~ prefix a b -> prefix b a.
 Proof.
-  intros a b c pf1 pf2.
+  intros A a b c pf1 pf2.
   refine ((fix f x y z
                (qf1 : prefix x (y ++ z))
                (qf2 : ~ prefix x y) : prefix y x :=
              match x as k return (x = k -> _) with
-               | [] => fun eq => _
+               | nil => fun eq => _
                | x' :: x'' =>
                  fun eq => 
                    match y as kk return (y = kk -> _) with
-                     | [] => fun eq => _
+                     | nil => fun eq => _
                      | y' :: y'' => _
                    end eq_refl
              end eq_refl) a b c pf1 pf2).
   destruct y.
-  exists Bnil.
+  exists (nil (A:=A)).
   auto.
   contradict qf2.
   rewrite -> eq.
-  exists (b0 :: y).
+  exists (a0 :: y).
   auto.
   exists (x' :: x'').
-  rewrite -> eq.
   auto.
   intros eq2.
   rewrite -> eq in qf1.
   rewrite -> eq2 in qf1.
-  rewrite -> eq2.
   inversion qf1.
   inversion H.
   assert (pref : prefix y'' x'').
@@ -347,22 +336,21 @@ Proof.
                   end eq_refl
             end eq_refl).
   exists (repeat n false).
-  auto.
-  rewrite H.
+  rewrite -> H.
   auto.
   intros deq.
   contradict lx.
   rewrite deq.
   rewrite eq.
   apply nnil_lex.
-  intros deq.  
+  intros deq.
   rewrite deq.
-  assert (lx' : lex (x :: r) (repeat (S n) false)).
+  assert (lx' : lex (x :: r) (repeat (S n0) false)).
   rewrite <- deq.
   rewrite <- eq.
   auto.
   inversion lx'.
-  assert (pref : prefix r (repeat n false)).
+  assert (pref : prefix r (repeat n0 false)).
   apply f.
   auto.
   elim pref.
@@ -372,8 +360,9 @@ Proof.
   rewrite -> quak.
   reflexivity.
   auto.
-Qed.  
+Qed.
 
+(* TODO: geht allgemeiner *)
 Lemma prefix_antisym : forall (a b : LB), prefix a b -> prefix b a -> a = b.
 Proof.
   refine (fix f a b :=
@@ -436,18 +425,22 @@ Proof.
   auto.
 Qed.
 
+
+(* TODO: geht allgemeiner *)
 Lemma max_common_prefix : forall (a b : LB), {c | (prefix c a) /\ (prefix c b) /\
                                                   forall d, prefix d a -> prefix d b -> prefix d c}.
 Proof.
-  refine (fix f a b := 
-            match a with
-                | nil => _
+  intros aq bq.
+  refine ((fix f a b := 
+            match a as A return (a = A -> _) with
+                | nil => fun eq => _
                 | (xa :: a') =>
-                  match b with
-                      | nil => _
-                      | (xb :: b') => _
-                  end
-            end).
+                  fun eq =>
+                  match b as B return (b = B -> _) with
+                      | nil => fun eq2 => _
+                      | (xb :: b') => fun eq2 => _
+                  end eq_refl
+            end eq_refl) aq bq).
 exists Bnil.
 split.
 exists Bnil.

@@ -1,33 +1,59 @@
-all: deflate
+HashTable.vo: HashTable.v
+	coqc HashTable.v
 
-DeflateNotations.vo: DeflateNotations.v
-	coqc DeflateNotations.v
+Intervals.vo: Intervals.v
+	coqc Intervals.v
 
-Quicksort.vo: Quicksort.v DeflateNotations.vo
+LSB.vo: LSB.v Transports.vo Shorthand.vo Combi.vo
+	coqc LSB.v
+
+EncodingRelation.vo: EncodingRelation.v Shorthand.vo DeflateCoding.vo  KraftVec.vo KraftList.vo Combi.vo Transports.vo Prefix.vo LSB.vo Repeat.vo Backreferences.vo StrongDec.vo
+	coqc EncodingRelation.v
+
+DecompressWithRecursiveSlowdown.vo : DecompressWithRecursiveSlowdown.v EncodingRelation.vo EncodingRelationProperties.vo Shorthand.vo Backreferences.vo Combi.vo
+	coqc DecompressWithRecursiveSlowdown.v
+
+Compress.vo : Compress.v Intervals.vo Prefix.vo HashTable.vo Shorthand.vo Backreferences.vo EncodingRelation.vo LSB.vo Combi.vo DeflateCoding.vo
+	coqc Compress.v
+
+EncodingRelationProperties.vo : EncodingRelationProperties.v Shorthand.vo DeflateCoding.vo KraftVec.vo KraftList.vo Combi.vo Transports.vo Prefix.vo LSB.vo Repeat.vo Backreferences.vo StrongDec.vo EncodingRelation.vo
+	coqc EncodingRelationProperties.v
+
+Backreferences.vo : Backreferences.v Combi.vo Shorthand.vo LSB.vo
+	coqc Backreferences.v
+
+Quicksort.vo: Quicksort.v
 	coqc Quicksort.v
 
-Lex.vo: Lex.v DeflateNotations.vo
+Lex.vo: Lex.v Shorthand.vo
 	coqc Lex.v
 
-Transports.vo: Transports.v DeflateNotations.vo
+Shorthand.vo: Shorthand.v
+	coqc Shorthand.v
+
+Transports.vo: Transports.v Shorthand.vo
 	coqc Transports.v
 
-Prefix.vo: Prefix.v DeflateNotations.vo
+Prefix.vo: Prefix.v Shorthand.vo
 	coqc Prefix.v
 
-Repeat.vo: Repeat.v Prefix.vo Lex.vo Transports.vo DeflateNotations.vo
+Repeat.vo: Repeat.v Prefix.vo Lex.vo Shorthand.vo
 	coqc Repeat.v
 
-Combi.vo: Combi.v Repeat.vo Prefix.vo Transports.vo Lex.vo Quicksort.vo DeflateNotations.vo
+Combi.vo: Combi.v Repeat.vo Prefix.vo Transports.vo Lex.vo Shorthand.vo
 	coqc Combi.v
 
-KraftList.vo: KraftList.v DeflateNotations.vo Prefix.vo Combi.vo
+KraftList.vo: KraftList.v Shorthand.vo Prefix.vo Combi.vo
 	coqc KraftList.v
 
-KraftVec.vo: KraftVec.v KraftList.vo DeflateNotations.vo Prefix.vo Combi.vo Transports.vo
+KraftVec.vo: KraftVec.v KraftList.vo Shorthand.vo Prefix.vo Combi.vo Transports.vo
 	coqc KraftVec.v
 
-DeflateCoding.vo: DeflateCoding.v DeflateNotations.vo Quicksort.vo Lex.vo Transports.vo Prefix.vo Repeat.vo Combi.vo KraftList.vo KraftVec.vo
+StrongDec.vo: StrongDec.v Shorthand.vo Prefix.vo Combi.vo
+	coqc StrongDec.v
+
+DeflateCoding.vo: DeflateCoding.v Shorthand.vo Quicksort.vo Lex.vo Transports.vo Prefix.vo Repeat.vo Combi.vo KraftList.vo KraftVec.vo StrongDec.vo
 	coqc DeflateCoding.v
 
-deflate: Quicksort.vo Lex.vo Transports.vo Prefix.vo Repeat.vo Combi.vo KraftList.vo KraftVec.vo DeflateCoding.vo
+clean:
+	rm -f *.vo *~ *.glob \#* Test.hs *.o TestCases *.hi

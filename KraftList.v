@@ -6,7 +6,7 @@ Require Import Coq.Arith.Arith.
 Require Import Coq.Lists.List.
 Require Import NPeano.
 
-Require Import DeflateNotations.
+Require Import Shorthand.
 Require Import Prefix.
 Require Import Combi.
 
@@ -42,23 +42,9 @@ Defined.
 
 (* todo: gibts vmtl woanders *)
 Definition kraft_f_1 : forall (m n : nat), (m - n = 0 -> m <= n)%nat.
-refine (fix k m n : (m - n = 0 -> m <= n)%nat :=
-          match m,n with
-              (*| 0%nat, 0%nat => _*)
-              | 0%nat, n => _
-              | (S m), (S n) => _
-              | (S m), 0%nat => _
-          end
-).
-intros q. apply le_0_n.
-intros q. inversion q.
-intros a.
-apply le_n_S.
-apply k.
-assert (H : (S m - S n)%nat = (m - n)%nat).
-apply Nat.sub_succ.
-rewrite <- H.
-trivial.
+Proof.
+  intros.
+  omega.
 Defined.
 
 Local Open Scope Q_scope.
@@ -150,12 +136,12 @@ Defined.
 
 Lemma kraft_pflist : forall l, dflist l -> pflist l -> kraft_list l <= 1.
 Proof.
-  intros l df pf.
-  refine ((fix f n l df pf (eq : (list_maxlen l <= n)%nat) :=
+  intros lq dfq pfq.
+  refine ((fix f n l df pf (eq0 : (list_maxlen l <= n)%nat) :=
              match n as m return ((m = n) -> _) with
                | 0%nat => (fun eq => _)
                | (S n') => (fun eq => _)
-             end eq_refl) (S (list_maxlen l)) l df pf _).
+             end eq_refl) (S (list_maxlen lq)) lq dfq pfq _).
   rewrite <- eq in eq0.
   inversion eq0.
   induction l.
@@ -170,11 +156,11 @@ Proof.
   inversion df.
   contradict H4.
   apply in_eq.
-  assert (H2:max (ll Bnil) (list_maxlen ((b :: l) :: l1))=(list_maxlen ((b :: l) :: l1))).
+  assert (H2:max (ll Bnil) (list_maxlen ((b :: l) :: l0))=(list_maxlen ((b :: l) :: l0))).
   apply Max.max_0_l.
   rewrite -> H2 in H1.
   inversion H1.
-  destruct (list_maxlen l1).
+  destruct (list_maxlen l0).
   inversion H3.
   inversion H3.
   inversion H1.
@@ -187,11 +173,11 @@ Proof.
   destruct l.
   inversion innil.
   destruct l.
-  destruct l1.
+  destruct l0.
   compute.
   intros Q.
   inversion Q.
-  assert (q1 : In l (Bnil :: l :: l1)).
+  assert (q1 : In l (Bnil :: l :: l0)).
   apply in_cons.
   apply in_eq.
   assert (q2 : Bnil <> l).
@@ -207,7 +193,7 @@ Proof.
   apply innil.
   apply q1.
   apply q2.
-  assert(q1:In(b :: l)((b :: l) :: l1)).
+  assert(q1:In(b :: l)((b :: l) :: l0)).
   apply in_eq.
   assert (ispref : prefix Bnil (b :: l)).
   exists (b :: l).
@@ -341,13 +327,13 @@ Lemma kraft_pflist_sharp : forall l, dflist l -> pflist l ->
                                      (forall m, dflist (m :: l) -> pflist (m :: l) -> False)
                                      -> kraft_list l == 1.
 Proof.
-  intros l df pf fm.
+  intros lq dfq pfq fmq.
   refine ((fix f n l (le : (list_maxlen l <= n)%nat) df pf fm :=
              match n as m return (n = m -> _) with
                | 0%nat => fun eq => _
                | S n' => fun eq => _
              end eq_refl)
-            (list_maxlen l) l (le_refl (list_maxlen l)) df pf fm).
+            (list_maxlen lq) lq (le_refl (list_maxlen lq)) dfq pfq fmq).
   rewrite -> eq in le.
   induction l.
   assert (Q:False).
@@ -365,14 +351,12 @@ Proof.
   inversion H0.
   inversion H.
   contradict Q.
-  inversion le.
-  destruct a.  
+  destruct a.
   destruct l.
   reflexivity.
   destruct l.
   inversion df.
-  contradict H3.
-  apply in_eq.
+  match goal with E : _ |- _ => contradict E; apply in_eq end.
   assert (ispf : prefix Bnil (b :: l)).
   exists (b :: l).
   apply app_nil_l.
@@ -383,10 +367,11 @@ Proof.
   apply in_eq.
   intros Q.
   inversion Q.
-  inversion H0.
+
+  inversion le.
   destruct (list_maxlen l).
-  inversion H1.
-  inversion H1.
+  match goal with E : _ |- _ => inversion E end.
+  match goal with E : _ |- _ => inversion E end.
 
   assert(indec : {In nil l}+{~ In nil l}).
   apply in_dec.
@@ -397,7 +382,7 @@ Proof.
   destruct l.
   inversion innil.
   destruct l.
-  destruct l1.
+  destruct l0.
   reflexivity.
   destruct l.
   inversion df.
@@ -460,7 +445,7 @@ Proof.
   apply in_eq.
   intros Q.
   inversion Q.
-  destruct(list_maxlen l1).
+  destruct(list_maxlen l0).
   inversion H0.
   inversion H0.
   rewrite <- eq.

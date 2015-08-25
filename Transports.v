@@ -3,7 +3,7 @@ Require Import Coq.Vectors.Vector.
 Require Import Program.
 Require Import Coq.Logic.ProofIrrelevance.
 Require Import Coq.Structures.Orders.
-Require Import DeflateNotations.
+Require Import Shorthand.
 Require Import Coq.Vectors.Fin.
 Require Import Omega.
 
@@ -75,9 +75,9 @@ Proof.
  inversion Q.
  intros Q.
  inversion Q.
- rewrite e.
+ rewrite _H.
  auto.
- contradict n1.
+ contradict _H.
  apply FS_inj.
  trivial.
 Defined.
@@ -92,7 +92,7 @@ refine (match a as c return (a = c -> _) with
             | (S n) => (fun _ => _)
         end eq_refl).
 contradict fa.
-rewrite e.
+rewrite _H.
 intros Q.
 inversion Q.
 rewrite <- eq.
@@ -231,7 +231,7 @@ Lemma VecIdLemma : forall {A} {n m} (eq : n = m) (v : vec A n) q, (Vnth (vec_id 
 intros A n m eq v q.
 dependent destruction eq.
 rewrite -> vec_id_destroy.
-replace (symmetry eq_refl) with (eq_refl n).
+replace (symmetry (x:=n) (y:=n) eq_refl) with (eq_refl n).
 rewrite -> fin_id_destroy.
 reflexivity.
 apply proof_irrelevance.
@@ -274,3 +274,17 @@ Proof.
   apply proof_irrelevance.
   apply proof_irrelevance.
 Defined.
+
+Theorem f_nat_s : forall {m} (n : fin m), ` (f_nat (FinFS n)) = S (` (f_nat n)).
+Proof.
+  intros m n.
+  dependent induction n.
+  auto.
+
+  destruct (f_nat (FinFS n0)) as [ex ist] eqn:Heqs.
+  unfold f_nat.
+  unfold f_nat in Heqs.
+  rewrite -> Heqs.
+  compute.
+  reflexivity.
+Qed.

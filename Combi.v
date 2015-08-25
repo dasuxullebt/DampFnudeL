@@ -4,12 +4,13 @@ Require Import Coq.Sorting.Sorted.
 Require Import Coq.Vectors.Vector.
 Require Import Coq.Lists.List.
 Require Import Coq.QArith.Qfield.
-Require Import DeflateNotations.
+Require Import Program.
+
+Require Import Shorthand.
 Require Import Lex.
 Require Import Prefix.
 Require Import Repeat.
 Require Import Transports.
-Require Import Program.
 
 Local Open Scope nat.
 
@@ -286,8 +287,8 @@ Defined.
 
 Fixpoint fold {n} {A} (null : A) (f : A -> A -> A) (vc : vec A n) : A :=
   match vc with
-      | Vnil _ => null
-      | Vcons _ a _ r => f a (fold null f r)
+      | Vnil => null
+      | Vcons a _ r => f a (fold null f r)
   end.
 
 Fixpoint foldlist {A B} (null : B) (f : A -> B -> B) (l : list A) : B :=
@@ -302,6 +303,16 @@ Proof.
   rewrite (vec_0_nil vc).
   reflexivity.
 Defined.
+
+Lemma vec_id_fold : forall {A} {n m : nat} (eq : n = m) (a : A)
+                           (b : A -> A -> A) (v : vec A n),
+                      fold a b (vec_id eq v) = fold a b v.
+Proof.
+  intros A n m eq a b v.
+  dependent destruction eq.
+  rewrite -> (vec_id_destroy v).
+  reflexivity.
+Qed.
 
 Inductive dflist : list LB -> Set := 
   | dflist_nil : dflist nil
@@ -642,7 +653,7 @@ Proof.
   inversion eq.
   exists Bnil.
   split.
-  exists l0.
+  exists y0.
   apply app_nil_l.
   reflexivity.
 
@@ -686,19 +697,19 @@ Proof.
                | [] => fun eq => _
                | x' :: x'' => fun eq =>
                                 match y as m return (y = m -> _) with
-                                  | [] => fun eq => _
-                                  | y' :: y'' => fun eq => _
+                                  | [] => fun eq0 => _
+                                  | y' :: y'' => fun eq0 => _
                                 end eq_refl
              end eq_refl) a b lx alb).
   replace ((ll y - ll Bnil)%nat) with (ll y).
   apply lex_0_x.
   apply minus_n_O.
-  rewrite <- eq0 in lxly.
-  rewrite -> eq in lxly.
+  rewrite -> eq0 in lxly.
+  rewrite <- eq in lxly.
   inversion lxly.
   elim (bool_dec x' y').
   intros xyeq.
-  rewrite -> eq.
+  (*rewrite -> eq. *)
   rewrite <- xyeq.
   assert (ll_rec : (ll (x' :: y'') - ll (x' :: x'') = ll y'' - ll x'')%nat).
   auto.
@@ -706,12 +717,12 @@ Proof.
   apply cdr_lex.
   apply f.
   apply (lex_cdr _ _ x').
-  rewrite -> eq in llx.
-  rewrite <- eq0 in llx.
+  rewrite <- eq in llx.
+  rewrite -> eq0 in llx.
   rewrite <- xyeq in llx.
   apply llx.
-  rewrite -> eq in lxly.
-  rewrite <- eq0 in lxly.
+  rewrite <- eq in lxly.
+  rewrite -> eq0 in lxly.
   apply le_S_n.
   auto.
 
@@ -720,19 +731,19 @@ Proof.
   destruct y'.
   contradict x_neq_y.
   reflexivity.
-  rewrite <- eq0 in llx.
-  rewrite -> eq in llx.
+  rewrite -> eq0 in llx.
+  rewrite <- eq in llx.
   inversion llx.
   destruct y'.
-  rewrite -> eq.
+  (*rewrite -> eq.*)
   apply car_lex.
   contradict x_neq_y.
   reflexivity.
 
   refine ((fix f x y (lxly : (ll x <= ll y)%nat) : ll (x ++ repeat (ll y - ll x) false) = ll y :=
              match x as k return (k = x -> _) with
-               | [] => fun eq => _
-               | x' :: x'' => fun eq =>
+               | [] => fun eq0 => _
+               | x' :: x'' => fun eq0 =>
                                 match y as m return (y = m -> _) with
                                   | [] => fun eq => _
                                   | y' :: y'' => fun eq => _
@@ -746,7 +757,7 @@ Proof.
   inversion lxly.
   assert (tmp1 : (ll (y' :: y'') - ll (x' :: x'') = ll y'' - ll x'')%nat).
   reflexivity.
-  rewrite -> eq.
+  (*rewrite -> eq.*)
   rewrite -> tmp1.
   assert (tmp2 : ll ((x' :: x'') ++ repeat (ll y'' - ll x'') false) = S (ll (x'' ++ repeat (ll y'' - ll x'') false))).
   reflexivity.
@@ -1503,10 +1514,10 @@ Lemma lex_take : forall a b c d, prefix a c -> prefix b d -> ll a = ll b -> lex 
 Proof.
   refine (fix f a b c d :=
             match (a, b, c, d) as S return ((a, b, c, d) = S -> _) with
-                | (nil, _, _, _) => fun _ => _
-                | (xa :: a', nil, _, _) => fun _ => _
-                | (xa :: a', xb :: b', nil, _) => fun _ => _
-                | (xa :: a', xb :: b', xc :: c', nil) => fun _ => _
+                | (nil, _, _, _) => fun e => _
+                | (xa :: a', nil, _, _) => fun e => _
+                | (xa :: a', xb :: b', nil, _) => fun e => _
+                | (xa :: a', xb :: b', xc :: c', nil) => fun e => _
                 | (xa :: a', xb :: b', xc :: c', xd :: d') => fun eq => _
             end eq_refl).
 inversion e.
@@ -1598,3 +1609,346 @@ Proof.
   reflexivity.
   apply s.
 Defined.
+
+(* TODO: This is provided in newer standard libraries *)
+Lemma of_nat_ext {p}{n} (h h' : p < n) : Fin.of_nat_lt h = Fin.of_nat_lt h'.
+Proof.
+ now rewrite (Peano_dec.le_unique _ _ h h').
+Qed.
+
+Lemma to_nat_inj {n} (p q : fin n) :
+ proj1_sig (Fin.to_nat p) = proj1_sig (Fin.to_nat q) -> p = q.
+Proof.
+ intro H.
+ rewrite <- (Fin.of_nat_to_nat_inv p), <- (Fin.of_nat_to_nat_inv q).
+ destruct (Fin.to_nat p) as (np,hp), (Fin.to_nat q) as (nq,hq); simpl in *.
+ revert hp hq. rewrite H. apply of_nat_ext.
+Qed.
+
+Lemma app_ll : forall {A} (a b c d : list A), a ++ b = c ++ d -> ll a = ll c -> a = c /\ b = d.
+Proof.
+  intros ? a b c.
+  revert b.
+  revert c.
+  induction a.
+  induction c.
+  firstorder.
+  intros ? ? ? Q.  
+  inversion Q.
+
+  destruct c.
+  intros ? ? ? Q.
+  inversion Q.
+  intros b d appeq lleq.
+  split.
+  inversion appeq.
+  f_equal.
+  apply (IHa c b d).
+  auto.
+  inversion lleq.
+  auto.
+  apply (IHa c b d).
+  inversion appeq.
+  auto.
+  inversion lleq.
+  auto.
+Qed.
+
+Lemma app_ll_r : forall {A} (la las lb lbs : list A),
+                   la ++ las = lb ++ lbs ->
+                   ll las = ll lbs ->
+                   la = lb /\ las = lbs.
+Proof.
+  intros A la las lb lbs apps lens.
+  assert (lens' : ll la = ll lb).
+  assert (ll la + ll las = ll lb + ll lbs).
+  rewrite <- app_length.
+  rewrite <- app_length.
+  f_equal.
+  auto.
+  omega.
+  apply app_ll.
+  trivial.
+  trivial.
+Qed.
+
+Lemma slice_list : forall {A} n (l : list A),
+                     ({l1 : list A & {l2 : list A | l1 ++ l2 = l /\ ll l1 = n}} +
+                      ({l1 : list A & {l2 : list A | l1 ++ l2 = l /\ ll l1 = n}} -> False))%type.
+Proof.
+  intros A n l.
+  revert n.
+  induction l as [|a l].
+  intro n.
+  destruct n.
+  apply inl.
+  exists (nil (A:=A)).
+  exists (nil (A:=A)).
+  auto.
+
+  apply inr.
+  intro Q.
+  destruct Q as [l1 [l2 [appeq lleq]]].
+  destruct l1.
+  inversion lleq.
+  inversion appeq.
+
+  intro n.
+  destruct n.
+  apply inl.
+  exists (nil (A:=A)).
+  exists (a :: l).
+  firstorder.
+
+  destruct (IHl n) as [[l1 [l2 [appeq lleq]]]|no].
+  apply inl.
+  exists (a :: l1).
+  exists l2.
+  split.
+  compute.
+  compute in appeq.
+  rewrite -> appeq.
+  reflexivity.
+  compute.
+  compute in lleq.
+  rewrite -> lleq.
+  reflexivity.
+
+  apply inr.
+  intro Q.
+  destruct Q as [l1 [l2 [k j]]].
+  destruct l1 as [|q l1].
+  inversion j.
+  contradict no.
+  exists l1.
+  exists l2.
+  split.
+  inversion k.
+  reflexivity.
+  inversion j.
+  reflexivity.
+Qed.
+
+Lemma slice_list_le : forall {A} n (l : list A),
+                        n <= ll l -> {l1 : list A & {l2 : list A | l1 ++ l2 = l /\ ll l1 = n}}.
+Proof.
+  intros A.
+  refine (fix f n l n_le_l {struct n} :=
+            match n as N return (n=N->_) with
+              | 0 => fun eqN => _
+              | (S n') => fun eqN => match l as L return (l=L->_) with
+                                       | [] => fun eqL => _
+                                       | (x :: l') => fun eqL => _
+                                     end eq_refl
+            end eq_refl).
+
+  exists (nil (A:=A)).
+  exists l.
+  auto.
+
+  rewrite -> eqL in n_le_l.
+  unfold ll in n_le_l.
+  omega.
+
+  destruct (f n' l') as [l1 [l2 [lapp lll]]].
+  rewrite -> eqL in n_le_l.
+  rewrite -> eqN in n_le_l.
+  compute in n_le_l.
+  compute.
+  omega.
+  exists (x :: l1).
+  exists l2.
+  split.
+  rewrite <- lapp.
+  reflexivity.
+  unfold ll.
+  unfold ll in lll.
+  omega.
+Qed.
+
+Lemma list_tail_destruct : forall {A} (L : list A), (L = nil) + {L' : list A & {m : A | L = L' ++ [m]}}.
+Proof.
+  intros A.
+  induction L.
+  auto.
+  apply inr.
+  destruct IHL.
+  rewrite -> e.
+  exists L.
+  exists a.
+  rewrite -> e.
+  reflexivity.
+  destruct s as [L' [m Lapp]].
+  exists (a :: L').
+  exists m.
+  compute.
+  compute in Lapp.
+  rewrite <- Lapp.
+  reflexivity.
+Qed.
+
+Theorem rev_ind_computational : forall {A} (P:list A -> Type),
+                                  P [] ->
+                                  (forall (x:A) (l:list A), P l -> P (l ++ [x])) -> forall l:list A, P l.
+Proof.
+  intros A P H' X' l'.
+  refine ((fix f n l (n_l : n = ll l) H X := 
+             match n as N return (n=N->_) with
+               | 0 => fun eq => _
+               | (S n') => fun eq => _
+             end eq_refl) (ll l') l' eq_refl H' X').
+  destruct l.
+  trivial.
+  rewrite -> eq in n_l.
+  inversion n_l.
+  destruct (list_tail_destruct l) as [isnil | [l'' [m' mapp]]].
+  rewrite -> isnil in n_l.
+  rewrite -> eq in n_l.
+  inversion n_l.
+  rewrite -> mapp.
+  apply X.
+  apply (f n').
+  assert (S n' = ll l'' + 1).
+  replace 1 with (ll [m']).
+  rewrite <- eq.
+  rewrite -> n_l.
+  rewrite -> mapp.
+  apply app_length.
+  reflexivity.
+  omega.
+  trivial.
+  trivial.
+Qed.
+
+Theorem StrongInduction : forall P, (forall n, (forall x, x < n -> P x) -> P n) -> forall n, P n.
+Proof.
+  intros P trans n.
+  apply trans.
+
+  induction n.
+  intros x x0.
+  omega.
+
+  intros x x0.
+  destruct (eq_nat_dec x n) as [e|e].
+  rewrite -> e.
+  apply trans.
+  auto.
+  assert (x < n).
+  omega.
+  apply IHn.
+  auto.
+Qed.
+
+
+Lemma to_list_inj : forall {A} {m : nat} (t u : vec A m), to_list t = to_list u -> t = u.
+Proof.
+  intros A m t u eq.
+  dependent induction m.
+  dependent destruction t.
+  dependent destruction u.
+  reflexivity.
+  dependent destruction t.
+  dependent destruction u.
+  replace h with h0.
+  replace t with u.
+  reflexivity.
+  assert (H0 : to_list (Vcons A h m t) = h :: to_list t).
+  reflexivity.
+  assert (H1: to_list (Vcons A h0 m u) = h0 :: to_list u).
+  reflexivity.
+  apply IHm.
+  rewrite -> H1 in eq.
+  rewrite -> H0 in eq.
+  inversion eq.
+  reflexivity.
+  assert (H0 : to_list (Vcons A h m t) = h :: to_list t).
+  reflexivity.
+  assert (H1: to_list (Vcons A h0 m u) = h0 :: to_list u).
+  reflexivity.
+  rewrite -> H1 in eq.
+  rewrite -> H0 in eq. 
+  inversion eq.
+  reflexivity.
+Qed.
+
+Theorem ListToByte : forall l, lb l = 8 -> {X : Byte | to_list X = l}.
+Proof.
+  intros l l8.
+  assert (Y : {X : vec bool (lb l) | to_list X = l}).
+  exists (of_list l).
+  do 9 (destruct l; auto).
+  inversion l8.
+  rewrite -> l8 in Y.
+  apply Y.
+Qed.
+
+Lemma to_list_length : forall {A} {n} (v : vec A n), ll (to_list v) = n.
+Proof.
+  intros A n.
+  dependent induction n.
+  intro v.
+  dependent destruction v.
+  auto.
+  intro v.
+  dependent destruction v.
+  compute.
+  compute in IHn.
+  rewrite -> IHn.
+  reflexivity.
+Qed.
+
+Lemma ll_cons_s : forall {A} (c : A) (l : list A), ll (c :: l) = S (ll l).
+Proof.
+  auto.
+Qed.
+
+Lemma vec_eq_dec : forall {A} {n : nat} (a b : vec A n), (forall (c d : A), ({c = d} + {c <> d})%type) ->
+                                                         ((a = b) + (a = b -> False))%type.
+Proof.
+  intro A.
+  dependent induction n.
+  intros a b.
+  dependent destruction a.
+  dependent destruction b.
+  auto.
+
+  intros a b.
+  dependent destruction a.
+  dependent destruction b.
+
+  intro eqdec.
+  destruct (eqdec h h0) as [yes | no].
+  destruct (IHn a b eqdec) as [yes2 | no].
+
+  rewrite -> yes.
+  rewrite -> yes2.
+  auto.
+
+  apply inr.
+  intro Q.
+  dependent induction Q.
+  contradict no.
+  reflexivity.
+
+  apply inr.
+  intro Q.
+  dependent induction Q.
+  contradict no.
+  reflexivity.
+Defined.
+
+
+Lemma app_cancel_l : forall {A} (a b c : list A),
+                    a ++ b = a ++ c -> b = c.
+Proof.
+  intros A. 
+  induction a as [|x a IHa].
+  auto.
+  intros b c app.
+  apply IHa.
+  rewrite <- app_comm_cons in app.
+  rewrite <- app_comm_cons in app.
+  inversion app.
+  auto.
+Qed.

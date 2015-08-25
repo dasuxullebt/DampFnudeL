@@ -1,10 +1,14 @@
-Require Import DeflateNotations.
 Require Import Coq.Lists.List.
+Require Import Shorthand.
+
+(** Lexicographical ordering on binary lists *)
 
 Inductive lex : list bool -> list bool -> Prop :=
   | nil_lex : forall a, lex nil a
   | car_lex : forall a b, lex (false :: a) (true :: b)
   | cdr_lex : forall a b c, lex a b -> lex (c :: a) (c :: b).
+
+(** nil is never larger *)
 
 Lemma nnil_lex :  forall b l, ~ lex (b :: l) nil.
 Proof.
@@ -17,7 +21,9 @@ Proof.
   inversion H.
   intros H.
   inversion H.
-Defined.
+Qed.
+
+(** lexicographical ordering is decidable *)
 
 Lemma dec_lex: forall a b, (lex a b) + (~ lex a b).
 Proof.
@@ -60,14 +66,14 @@ Proof.
   intros q.
   inversion q.
   auto.
-Defined.
+Qed.
 
 Lemma lex_cdr : forall a b i, lex (i :: a) (i :: b) -> lex a b.
 Proof.
   intros a b i H.  
   inversion H.
   trivial.
-Defined.
+Qed.
 
 Lemma lex_refl : forall a, lex a a.
 Proof.
@@ -75,18 +81,18 @@ Proof.
   apply nil_lex.
   apply cdr_lex.
   auto.
-Defined.
+Qed.
 
 Lemma lex_nil_is_nil : forall c, lex c nil -> c = nil.
 Proof.
   induction c.
   auto.
-  intros H.
+  intro H.
   contradict H.
   apply nnil_lex.
-Defined.
+Qed.
 
-Definition lex_trans : forall a b c (lab : lex a b) (lbc : lex b c), lex a c.
+Theorem lex_trans : forall a b c, lex a b -> lex b c -> lex a c.
 refine (fix f (a b c : list bool) : lex a b -> lex b c -> lex a c :=
           match b with
               | nil => _
@@ -116,59 +122,59 @@ refine (fix f (a b c : list bool) : lex a b -> lex b c -> lex a c :=
  ).
 
 intros.
-assert(a = nil).
+assert(H1 : a = nil).
 apply lex_nil_is_nil.
 trivial.
-rewrite H1.
+rewrite -> H1.
 trivial.
 
 intros.
 apply nil_lex.
-intros.
-contradict H0.
+intros ? J.
+contradict J.
 apply nnil_lex.
 
-intros.
+intros H H0.
 inversion H.
 inversion H0.
 apply cdr_lex.
 apply (f a' b' c').
-auto.
-auto.
+trivial.
+trivial.
 
-intros.
-inversion H0.
+intros ? H.
+inversion H.
 
-intros.
-inversion H0.
+intros ? H.
+inversion H.
 
 intros.
 apply car_lex.
 
-intros.
+intros ? H0.
 inversion H0.
 
 intros.
 apply nil_lex.
-intros.
+intro H.
 inversion H.
 
-intros.
-inversion H0.
+intros ? H.
+inversion H.
 
 intros.
 apply car_lex.
 
-intros.
+intros H H0.
 inversion H.
 inversion H0.
 apply cdr_lex.
 apply (f _ b').
 auto.
 auto.
-Defined.
+Qed.
 
-Definition lex_antisym : forall a b, lex a b /\ lex b a -> a = b.
+Theorem lex_antisym : forall a b, lex a b /\ lex b a -> a = b.
 refine (fix f a b : lex a b /\ lex b a -> a = b :=
           match a with
               | nil => _
@@ -183,49 +189,49 @@ refine (fix f a b : lex a b /\ lex b a -> a = b :=
                                  | true :: b' => _
                                end
           end).
-intros.
-elim H.
-intros.
-apply eq_sym.
-apply lex_nil_is_nil.
-trivial.
-intros.
-induction H.
-inversion H.
-intros.
-induction H.
-assert(a' = b').
+
+(* Todo: make this proof nicer *)
+
+intro H; destruct H as [H0 H1]; apply eq_sym; [apply lex_nil_is_nil; [trivial]].
+
+intro H; destruct H as [H H0]; inversion H.
+
+intro H.
+destruct H as [H H0].
+assert(H1 : a' = b').
 apply f.
 split.
 apply (lex_cdr _ _ true).
 trivial.
 apply (lex_cdr _ _ true).
 trivial.
-rewrite H1.
+rewrite -> H1.
 auto.
 
-intros.
-induction H.
+intro H.
+destruct H as [H H0].
 inversion H.
-intros.
-induction H.
+
+intro H.
+destruct H as [H H0].
 inversion H.
-intros.
-induction H.
+
+intro H.
+destruct H as [H H0].
 inversion H0.
 
-intros.
-induction H.
-assert(a'=b').
+intro H.
+destruct H as [H H0].
+assert(H1 : a'=b').
 apply f.
 split.
 apply (lex_cdr _ _ false).
 trivial.
 apply (lex_cdr _ _ false).
 trivial.
-rewrite H1.
+rewrite -> H1.
 auto.
-Defined.
+Qed.
 
 Definition lex_total : forall a b, lex a b + lex b a.
 refine (fix f a b : lex a b + lex b a :=
@@ -268,7 +274,7 @@ trivial.
 apply inr.
 apply cdr_lex.
 trivial.
-Defined.
+Qed.
 
 Lemma lex_total_lemma : forall a b, ~ lex a b -> lex b a.
 Proof.
@@ -279,7 +285,7 @@ Proof.
   contradict a0.
   trivial.
   trivial.
-Defined.
+Qed.
 
 Lemma lex_apprm : forall a b c, lex (a ++ b) (a ++ c) -> lex b c.
 Proof.
@@ -295,4 +301,4 @@ Proof.
   apply lx.
   auto.
   auto.
-Defined.
+Qed.

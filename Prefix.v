@@ -1,15 +1,16 @@
-Require Import DeflateNotations.
+Require Import Shorthand.
 Require Import Coq.Lists.List.
 Require Import Coq.Arith.Arith.
 Require Import Coq.QArith.Qfield.
 
 Local Open Scope nat.
 
-Definition prefix (a b : list bool) : Prop :=
+Definition prefix {A} (a b : list A) : Prop :=
   exists c, a ++ c = b.
 
-Lemma prefix_le : forall a b, prefix a b -> (ll a <= ll b).
+Lemma prefix_le : forall {A} (a b : list A), prefix a b -> (ll a <= ll b).
 Proof.
+  intro A.
   induction a as [|a a0 IHa].
   intros b H.
   firstorder.
@@ -28,11 +29,11 @@ Proof.
   reflexivity.
   auto.
   auto.
-Defined.
+Qed.
 
-Lemma prefix_trans : forall a b c, prefix a b -> prefix b c -> prefix a c.
+Lemma prefix_trans : forall {A} (a b c : list A), prefix a b -> prefix b c -> prefix a c.
 Proof.
-  intros a b c H H0.
+  intros A a b c H H0.
   inversion H.
   inversion H0.
   exists (x ++ x0).
@@ -41,20 +42,20 @@ Proof.
   trivial.
   apply eq_sym.
   apply Coq.Lists.List.app_assoc.
-Defined.
+Qed.
 
-Lemma prefix_cdr : forall a b l m, prefix (a :: l) (b :: m) -> prefix l m.
+Lemma prefix_cdr : forall {A} (a b : A) (l m : list A), prefix (a :: l) (b :: m) -> prefix l m.
 Proof.
-  intros a b l m H.
+  intros A a b l m H.
   inversion H as [x H0].
   inversion H0.
   exists x.
   trivial.
-Defined.
+Qed.
 
-Lemma prefix_cons : forall a b c, prefix a b -> prefix (c :: a) (c :: b).
+Lemma prefix_cons : forall {A} (a b : list A) c, prefix a b -> prefix (c :: a) (c :: b).
 Proof.
-  intros a b c.
+  intros A a b c.
   destruct a as [|a1 a2].
   intros _. 
   exists b.                 
@@ -69,14 +70,14 @@ Proof.
   inversion H.
   exists x.
   reflexivity.
-Defined.
+Qed.
 
-Lemma prefix_nnil : forall (n : LB) i, ~ prefix (i :: n) nil.
+Lemma prefix_nnil : forall {A} (n : list A) i, ~ prefix (i :: n) nil.
 Proof.
-  intros ? ? Q.
+  intros ? ? ? Q.
   inversion Q as [? H].
   inversion H.
-Defined.
+Qed.
 
 (* TODO: Doesn't really fit in here *)
 Lemma nnil_ll : forall a, (ll a <> 0)%nat -> a <> Bnil.
@@ -87,19 +88,19 @@ Proof.
   reflexivity.
   intros Q.
   inversion Q.
-Defined.
+Qed.
 
-Lemma nil_ll : forall a, (ll a = 0)%nat -> a = Bnil.
+Lemma nil_ll : forall {A} (a : list A), (ll a = 0)%nat -> a = nil.
 Proof.
-  intros a eq.
+  intros A a eq.
   induction a.
   reflexivity.
   inversion eq.
-Defined.
+Qed.
 
-Lemma prefix_ll_eq : forall m n, prefix m n /\ ll m = ll n -> m = n.
+Lemma prefix_ll_eq : forall {A} (m n : list A), prefix m n /\ ll m = ll n -> m = n.
 Proof.
-  intros m n und.
+  intros A m n und.
   destruct und as [[x eq] lleq].
   assert (llmx : ll m + ll x = ll n).
   rewrite <- eq.
@@ -114,9 +115,9 @@ Proof.
   rewrite <- xnil.
   auto.
   apply app_nil_r.
-Defined.
+Qed.
 
-Lemma prefix_dec : forall a b, (prefix a b + ~ prefix a b)%type.
+Lemma prefix_dec : forall (a b : LB), (prefix a b + ~ prefix a b)%type.
 Proof.
   refine (fix f a b :=
             match (a, b) as R return (_ = (a, b) -> _) with
@@ -153,9 +154,10 @@ Proof.
   auto.
 Defined.
 
-Lemma prefix_common : forall a b c, prefix a c -> prefix b c ->
-                                    (prefix a b + prefix b a).
+Lemma prefix_common : forall {A} (a b c : list A), prefix a c -> prefix b c ->
+                                                   (prefix a b + prefix b a).
 Proof.
+  intro A.
   refine (fix pc a b c ac bc :=
             match (a, b, c) as A return ((a, b, c) = A -> _) with
               | (nil, _, _) => fun eq => _
@@ -188,8 +190,7 @@ Proof.
   destruct rec; [left|right]; subst; now apply prefix_cons.
 Defined.
 
-(* TODO: this should be in Prefix.v *)
-Lemma prefix_split : forall a b, prefix a b -> {c | a ++ c = b}.
+Lemma prefix_split : forall (a b : LB), prefix a b -> {c | a ++ c = b}.
 Proof.
   refine (fix split a b pref :=
             match a as A return (a = A -> _) with

@@ -8,7 +8,7 @@ Require Import Coq.Lists.List.
 Require Import NPeano.
 Require Import Program.
 
-Require Import DeflateNotations.
+Require Import Shorthand.
 Require Import Prefix.
 Require Import Combi.
 Require Import KraftList.
@@ -30,8 +30,8 @@ Function kraft_vec {n} (vc : vec LB n) : Q :=
 
 Fixpoint list_of_nonnil_codes {n} (v : vec LB n) : list LB :=
   match v with
-    | Vnil _ => nil
-    | (Vcons _ h _ v') =>
+    | Vnil => nil
+    | (Vcons h _ v') =>
       match h with
         | nil => list_of_nonnil_codes v'
         | h' => h' :: list_of_nonnil_codes v'
@@ -523,4 +523,3 @@ Proof.
   rewrite -> vec_id_destroy.
   reflexivity.
 Defined.
-
