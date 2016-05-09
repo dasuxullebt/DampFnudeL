@@ -3,6 +3,8 @@ algorithm for deflate streams. It is extremely slow and memory
 consuming, and was mainly made to test the specification against small
 datasets. It is *not* meant for actual usage. *)
 
+Require Import CpdtTactics.
+
 Require Import Coq.Logic.Decidable.
 Require Import Coq.Arith.Compare_dec.
 
@@ -37,34 +39,183 @@ Require Import EncodingRelation.
 
 Local Open Scope nat_scope.
 
+Lemma nBitsEq : forall l m n, nBits n l m <-> (l = m /\ ll l = n).
+Proof.
+  intros l m n.
+  revert l m.
+  induction n.
+  intros l m.
+  split.
+  intro nb.
+  inversion nb.
+  crush.
+  intros [lm lb].
+  destruct l.
+  crush.
+  constructor.
+  reflexivity.
+  reflexivity.
+  inversion lb.
+
+  intros l m.
+  split.
+  intro nb.
+  split.
+  inversion nb.
+  match goal with
+    | K : OneBit _ _ |- _ => inversion K
+  end.
+  simpl.
+  f_equal.
+  apply IHn.
+  trivial.
+  inversion nb.
+  simpl.
+  f_equal.
+  apply (proj1 (IHn br ar)).
+  trivial.
+
+  intros [lm lb].
+  destruct l.
+  inversion lb.
+  replace (b :: l) with ([b] ++ l) in lm ; [|reflexivity].
+  rewrite <- lm.
+  constructor.
+  constructor.
+  apply IHn.
+  crush.
+Qed.
+
+Lemma OneByteEq : forall (b : Byte), OneByte (inl b) (to_list b).
+Proof.
+  intro b.
+  apply AppCombineF.
+  unfold nBitsVec.
+  apply nBitsEq.
+  split.  
+  reflexivity.
+  apply to_list_length.
+Qed.
+
+(* Old definition of nBytesDirect. *)
+Inductive nBytesDirect_old : nat -> SequenceWithBackRefs Byte -> LB -> Prop :=
+| nBytesDirect0 : nBytesDirect_old 0 nil nil
+| nBytesDirectS : forall n a b bools thebyte,
+                    nBytesDirect_old n a b -> bools = to_list thebyte ->
+                    nBytesDirect_old (S n) ((inl thebyte) :: a) (bools ++ b).
+
+(* Old definition of nBytesDirect is equivalent to new one. *)
+Goal forall n swbr lb, nBytesDirect n swbr lb <-> nBytesDirect_old n swbr lb.
+Proof.
+  induction n as [|n IHn].
+  + intros swbr lb.
+    split.
+    - intro nbd.
+      inversion nbd.
+      crush.
+      constructor.
+    - intro nbdo.
+      inversion nbdo.
+      constructor.
+      reflexivity.
+      reflexivity.
+  + intros swbr lb.
+    split.
+    - intro nbd.
+      unfold nBytesDirect in nbd.
+      inversion nbd as [A B C D E F G H].
+      inversion E as [I J K L M [N_ N] O P].
+      constructor.
+      apply IHn.
+      apply F.
+      unfold nBitsVec in M.
+      rewrite -> (proj1 (proj1 (nBitsEq _ _ _) M)).
+      rewrite -> N.
+      rewrite -> app_nil_r.
+      reflexivity.
+    - intro nbdo.
+      inversion nbdo.
+      constructor.
+      crush.
+      apply AppCombineF.
+      unfold nBitsVec.
+      apply nBitsEq.
+      crush.
+      apply to_list_length.
+      apply IHn.
+      trivial.
+Qed.
+
+(* old definition of readBitsLSB *)
+Inductive readBitsLSB_old (length : nat) : nat -> LB -> Prop :=
+| mkRBLSB : forall l n, ll l = length -> LSBnat l n -> readBitsLSB_old length n l.
+
+Goal forall length n lb, readBitsLSB length n lb <-> readBitsLSB_old length n lb.
+Proof.
+  intros length n lb.
+  split.
+  intro rbl.
+  inversion rbl.
+  constructor.
+  match goal with
+    | K : nTimesCons _ _ _ _, L : _ /\ _ = Bnil |- _ =>
+      destruct L as [L_ L];
+      apply nBitsEq in K;
+        destruct K as [A B];
+        rewrite <- A;
+        rewrite -> L;
+        rewrite -> app_nil_r;
+        trivial
+  end.
+  match goal with
+    | K : nTimesCons _ _ _ _, L : _ /\ _ = Bnil |- _ =>
+      destruct L as [L_ L];
+      apply nBitsEq in K;
+        destruct K as [A B];
+        rewrite <- A;
+        rewrite -> L;
+        rewrite -> app_nil_r;
+        apply ListToNat_correct
+  end.
+  intro rblo.
+  inversion rblo.
+  replace n with (ListToNat lb).
+  apply AppCombineF.
+  apply nBitsEq.
+  crush.
+  eapply LSBnat_unique.
+  apply ListToNat_correct.
+  trivial.
+Qed.
 
 (** Plausibility check: *)
-Goal nBytesDirect 3 [false; false; false; false; false; false; false; false;
-                     false; false; false; false; false; false; false; true;
-                     false; false; false; false; false; false; true; false]
-     [ inl (of_list [false; false; false; false; false; false; false; false]);
-       inl (of_list [false; false; false; false; false; false; false; true]);
-       inl (of_list [false; false; false; false; false; false; true; false]) ].
+Goal nBytesDirect 3 [ inl (of_list [false; false; false; false; false; false; false; false]);
+                      inl (of_list [false; false; false; false; false; false; false; true]);
+                      inl (of_list [false; false; false; false; false; false; true; false]) ]
+     [false; false; false; false; false; false; false; false;
+      false; false; false; false; false; false; false; true;
+      false; false; false; false; false; false; true; false].
 Proof.
-  apply (nBytesDirectS 2
-                       [false; false; false; false; false; false; false; true;
-                        false; false; false; false; false; false; true; false]
-                       [inl (of_list [false; false; false; false; false; false; false; true]);
-                         inl (of_list [false; false; false; false; false; false; true; false])]
-                       [false; false; false; false; false; false; false; false]
-                       (of_list [false; false; false; false; false; false; false; false])).
-  apply (nBytesDirectS 1
-                       [false; false; false; false; false; false; true; false]
-                       [inl (of_list [false; false; false; false; false; false; true; false])]
-                       [false; false; false; false; false; false; false; true]
-                       (of_list [false; false; false; false; false; false; false; true])).
-  apply (nBytesDirectS 0
-                       []
-                       []
-                       [false; false; false; false; false; false; true; false]
-                       (of_list [false; false; false; false; false; false; true; false])).
-  apply nBytesDirect0.
-  reflexivity.
+  replace [false; false; false; false; false; false; false; false;
+           false; false; false; false; false; false; false; true;
+           false; false; false; false; false; false; true; false]
+  with ([false; false; false; false; false; false; false; false]
+          ++ [false; false; false; false; false; false; false; true]
+          ++ [false; false; false; false; false; false; true; false]
+          ++ []); [|reflexivity].
+  constructor.
+  apply AppCombineF.
+  apply nBitsEq.
+  crush.
+  constructor.
+  apply AppCombineF.
+  apply nBitsEq.
+  crush.
+  constructor.
+  apply AppCombineF.
+  apply nBitsEq.
+  crush.
+  constructor.
   reflexivity.
   reflexivity.
 Qed.
@@ -73,255 +224,224 @@ Qed.
 
 (** There can never be a back reference *)
 
-Goal forall n L S x, nBytesDirect n L S -> ~ In (inr x) S.
+Goal forall n L S x, nBytesDirect n S L -> ~ In (inr x) S.
 Proof.
   induction n.
   intros L S x H.
-  inversion H.
+  inversion H as [A B].
+  rewrite -> A.
   auto.
 
   intros L S x H.
-  inversion H as [|A B C D E F G I J K].
-  intros Q.
-  inversion Q as [QQ | QQQ].
-  inversion QQ.
-  assert (~ In (inr x) C).
-  apply IHn with B.
-  trivial.
-  auto.
-Defined.
+  inversion H as [A B C D E F G J].
+  intros [QQ | QQQ].
+  inversion E.
+  crush.
 
-(** folding with ++ and mapping inl y to y, and inr _ to an arbitrary x, results in the same relation. *)
-
-Theorem nBytesFunction :
-  forall n L S x,
-    nBytesDirect n L S ->
-    L = fold_right (app (A:=bool)) [] (map (fun z => match z with
-                                                       | inl y => to_list y
-                                                       | inr _ => x
-                                                     end) S).
-Proof.
-  induction n.
-  intros L S x H.
-  inversion H.
-  auto.
-
-  intros L S x H.
-  inversion H as [|H0 H1 H2 H3 H4 H5 H6 H7 H8 H9].
-  unfold map.
-  rewrite <- H6.
-  unfold fold_right.
-  f_equal.
-  unfold map in IHn.
-  unfold fold_right in IHn.
-  apply (IHn H1 H2 x).
-  auto.
-Defined.
+  eapply IHn.
+  exact F.
+  exact QQQ.
+Qed.
 
 Theorem nBytesInputLength : forall n L S,
-                              nBytesDirect n L S -> ll L = 8 * n.
+                              nBytesDirect n L S -> ll S = 8 * n.
 Proof.
   induction n.
   intros L S H.
   inversion H.
-  reflexivity.
+  crush.
 
   intros L S nbd.
-  inversion nbd.
+  inversion nbd as [A B C D E F G H].
   rewrite -> app_length.
-  rewrite -> (IHn a b H0).
-  rewrite -> H1.
+  rewrite -> (IHn _ _ F).
+  inversion E as [J K M N O [P_ P] Q R].
+  rewrite -> app_length.
+  rewrite -> P.
+  apply nBitsEq in O.
+  destruct O as [O T].
+  rewrite <- O.
   rewrite -> to_list_length.
+  simpl.
   omega.
 Defined.
 
-Theorem nBytesDirectStrongUnique : forall n, StrongUnique (fun a b => nBytesDirect n b a).
+Lemma OneBitStrongUnique : StrongUnique OneBit.
 Proof.
-  induction n.
-  intros a b la las lb lbs apps nba nbb.
-  inversion nba.
-  inversion nbb.
+  intros a b la las lb lbs apps oa ob.
+  destruct a.
+  destruct b.
+  inversion oa.
+  inversion ob.
   auto.
+  inversion oa as [Aa Ba Ca].
+  inversion ob as [Ab Bb Cb].
+  rewrite <- Ca in apps.
+  rewrite <- Cb in apps.
+  crush.
 
-  intros a b la las lb lbs apps nba nbb.
-  inversion nba.
-  inversion nbb.
-  destruct (IHn b0 b1 a0 las a1 lbs) as [H9 H10].
-  apply (app_ll bools _ bools0 _).
-  rewrite -> app_assoc.
-  rewrite -> app_assoc.
-  rewrite -> H7.
-  rewrite -> H2.
-  trivial.
-  rewrite -> H1.
-  rewrite -> to_list_length.
-  rewrite -> H6.
-  symmetry.
-  apply to_list_length.
-  trivial.
-  trivial.
-  destruct (app_ll bools (a0 ++ las) bools0 (a1 ++ lbs)) as [H11 H12].
-  rewrite -> app_assoc.
-  rewrite -> H2.
-  rewrite -> app_assoc.
-  rewrite -> H7.
-  trivial.
-  rewrite -> H6.
-  rewrite -> to_list_length.
-  rewrite -> H1.
-  apply to_list_length.
-  split.
-  rewrite -> H9.
-  f_equal.
-  f_equal.
-  apply to_list_inj.
-  rewrite <- H6.
-  rewrite <- H1.
-  trivial.
-  rewrite -> H10.
-  rewrite -> H11.
-  reflexivity.
-Defined.
-
-
-Lemma readBitsLSBStrongUnique : forall length, StrongUnique (readBitsLSB length).
-Proof.
-  intros length a b la las lb lbs apps rbla rblb.
-  inversion rbla.
-  inversion rblb.
-  assert (later : la = lb).
-  apply (app_ll _ las _ lbs).
-  trivial.
-  rewrite -> H3.
-  trivial.
-  split.
-  apply (LSBnat_unique la).
-  trivial.
-  rewrite -> later.
-  trivial.
-  exact later.
-Defined.
-
-Lemma readBitsLSBStrongDec : forall length, StrongDec (readBitsLSB length).
-Proof.
-  intros length l.
-  destruct (slice_list length l) as [[l1 [l2 [lapp llen]]]|no].
-  apply inl.
-  exists (ListToNat l1).
-  exists l1.
-  exists l2.
-  split.
+  destruct b.
+  inversion oa as [Aa Ba Ca].
+  inversion ob as [Ab Bb Cb].
+  rewrite <- Ca in apps.
+  rewrite <- Cb in apps.
+  crush.
+  inversion oa.
+  inversion ob.
   auto.
-  constructor.
-  trivial.
-  apply ListToNat_correct.
+Qed.
 
+Lemma OneBitStrongDec : StrongDec OneBit.
+Proof.
+  intro l.
+  destruct l.
   apply inr.
   split.
-  exact ("Could not read enough bits in readBitsLSBStrongDec.(" ++ blstring l ++ ")")%string.
-  intro Q.
-  destruct Q as [a [l' [l'' [lapp rblsb]]]].
-  inversion rblsb.
-  contradict no.
+  exact "OneBit_ShortRead"%string.
+  intros [a [l' [l'' [lapp oba]]]].
+  destruct l'.
+  inversion oba.
+  crush.
+  apply inl.
+  exists b.
+  exists [b].
+  exists l.
+  crush.
+  constructor.
+Defined.
+
+Lemma nBitsStrongDecStrongUnique : forall n, StrongDec (nBits n) * StrongUnique (nBits n).
+Proof.
+  intro n. 
+  apply nTimesStrongDecStrongUnique.
+  exact "nBits"%string.
+  apply OneBitStrongUnique.
+  apply OneBitStrongDec.
+Defined.
+
+Lemma nBitsVecStongDecStrongUnique : forall n, StrongDec (nBitsVec n) * StrongUnique (nBitsVec n).
+Proof.
+  intro n.
+  split.
+  intro l.
+  destruct (fst (nBitsStrongDecStrongUnique n) l) as [[a [l' [l'' [lapp nb]]]]|[reason no]].
+  apply inl.
+  rewrite <- (proj2 (proj1 (nBitsEq _ _ _) nb)).
+  exists (of_list a).
   exists l'.
   exists l''.
   split.
-  auto.
-  auto.
-Defined.
-
-
-Lemma DecodeNBytesDirect_lemma1 : forall n l b, nBytesDirect (S n) l b -> ll l >= 8.
-Proof.
-  intros n l b H.
-  inversion H as [bools H1 H2|].
-  rewrite -> app_length.
-  assert (lb bools = 8).
-  rewrite -> H2.
-  apply to_list_length.
-  omega.
-Defined.
-
-Theorem nBytesDirectStrongDec : forall n, StrongDec (fun a b => nBytesDirect n b a).
-Proof.
-  induction n.
-
-  intro l.
-  apply inl.
-  exists (nil (A:=Byte + (nat * nat))).
-  exists Bnil.
-  exists l.
-  split.
-  reflexivity.
-  constructor.
-
-  intro l.
-  destruct (slice_list 8 l) as [[l1 [l2 [l1l2 lll1]]]|no] eqn:?.
-  destruct (IHn l2) as [[swbr [l3 [l4 [l3l4 nbd]]]]|[reason2 no2]].
-  apply inl.
-  assert (Y : {X : Byte | to_list X = l1}).
-  apply ListToByte.
   trivial.
-  destruct Y as [X tl].
-  exists (inl X :: swbr).
-  exists (l1 ++ l3).
-  exists l4.
-  split.
-  rewrite <- app_assoc.
-  rewrite <- l3l4.
-  auto.
-  apply nBytesDirectS.
-  auto.
-  auto.
-
-  destruct n.
-  contradict no2.
-  exists (nil (A:=Byte + (nat * nat))).
-  exists (nil (A:=bool)).
-  exists l2.
-  split.
-  auto.
-  constructor.
+  unfold nBitsVec.
+  rewrite -> to_list_of_list_opp.
+  rewrite -> (proj2 (proj1 (nBitsEq _ _ _) nb)).
+  exact nb.
 
   apply inr.
   split.
-  exact reason2.
-  intro Q.
-  destruct Q as [swbr [l' [r' [is nbd]]]].
-  inversion nbd. (* TODO *)
-
-  assert (bools = l1 /\ a ++ r' = l2).
-  apply app_ll.
-  rewrite -> app_assoc.
-  rewrite -> H2.
-  rewrite <- is.
-  rewrite -> l1l2.
-  reflexivity.
-  rewrite -> lll1.
-  rewrite -> H1.
-  apply to_list_length.
-  contradict no2.
-  exists b.
-  exists a.
-  exists r'.
-  firstorder.
-
-  apply inr.
-  split.
-  exact ("NBytesDirect: Could not read Byte. (" ++ blstring l ++ ")")%string.
-  intro Q.
-  destruct Q as [swbr [lb [r [isapp nbd]]]].
-  inversion nbd.
-  assert (nono : {l1 : LB & {l2 : LB | l1 ++ l2 = l /\ ll l1 = 8}}).
-  exists bools.
-  exists (a ++ r).
-  split.
-  rewrite -> app_assoc.
-  rewrite -> H2.
+  exact "nBitsVec"%string.
+  intros [a [l' [l'' [lapp nbv]]]].
+  apply no.
+  unfold nBitsVec in nbv.
+  exists (to_list a).
+  exists l'.
+  exists l''.
   auto.
-  rewrite -> H1.
-  apply to_list_length.
-  apply (no nono).
+
+  intros a b la las lb lbs apps nba nbb.
+  destruct (snd (nBitsStrongDecStrongUnique n) (to_list a) (to_list b) la las lb lbs apps).
+  trivial.
+  trivial.
+  split.
+  apply to_list_inj.
+  trivial.
+  trivial.
+Qed.
+
+Lemma OneByteStrongDecStrongUnique : StrongDec OneByte * StrongUnique OneByte.
+Proof.
+  split.
+  apply CombineStrongDecStrongUnique.
+  apply nBitsVecStongDecStrongUnique.
+  apply nBitsVecStongDecStrongUnique.
+  intro q.
+  split.
+  apply nullStrongUnique.
+  apply nullStrongDec.
+
+  apply CombineStrongDecStrongUnique.
+  apply nBitsVecStongDecStrongUnique.
+  apply nBitsVecStongDecStrongUnique.
+  intro q.
+  split.
+  apply nullStrongUnique.
+  apply nullStrongDec.
+Defined.
+
+Theorem nBytesDirectStrongDecStrongUnique :
+  forall n, StrongDec (nBytesDirect n) * StrongUnique (nBytesDirect n).
+Proof.
+  intros n.
+  apply nTimesStrongDecStrongUnique.
+  exact "nBytes"%string.
+  apply OneByteStrongDecStrongUnique.
+  apply OneByteStrongDecStrongUnique.
+Defined.  
+
+(* For compatibility *)
+Theorem nBytesDirectStrongUnique : forall n, StrongUnique (nBytesDirect n).
+Proof.
+  apply nBytesDirectStrongDecStrongUnique.
+Qed.
+
+Lemma readBitsLSBStrongDecStrongUnique :
+  forall length,  StrongDec (readBitsLSB length) * StrongUnique (readBitsLSB length).
+Proof.
+  intro length.
+  split.
+  apply CombineStrongDecStrongUnique.
+  apply nTimesStrongDecStrongUnique.
+  exact "readBitsLSB"%string.
+  apply OneBitStrongUnique.
+  apply OneBitStrongDec.
+  apply nTimesStrongDecStrongUnique.
+  exact "readBitsLSB"%string.
+  apply OneBitStrongUnique.
+  apply OneBitStrongDec.
+
+  intro Q.
+  split.
+  apply nullStrongUnique.
+  apply nullStrongDec.
+  apply CombineStrongDecStrongUnique.
+  apply nTimesStrongDecStrongUnique.
+  exact "readBitsLSB"%string.
+  apply OneBitStrongUnique.
+  apply OneBitStrongDec.
+  apply nTimesStrongDecStrongUnique.
+  exact "readBitsLSB"%string.
+  apply OneBitStrongUnique.
+  apply OneBitStrongDec.
+
+  intro Q.
+  split.
+  apply nullStrongUnique.
+  apply nullStrongDec.
+Defined.
+
+(* For Backward Compatibility *)
+Lemma readBitsLSBStrongUnique : forall length, StrongUnique (readBitsLSB length).
+Proof.
+  apply readBitsLSBStrongDecStrongUnique.
+Defined.
+Lemma readBitsLSBStrongDec : forall length, StrongDec (readBitsLSB length).
+Proof.
+  apply readBitsLSBStrongDecStrongUnique.
+Defined.
+
+Theorem nBytesDirectStrongDec : forall n, StrongDec (nBytesDirect n).
+Proof.
+  apply nBytesDirectStrongDecStrongUnique. 
 Defined.
 
 Theorem UncompressedBlockDirectStrongUniqueStrongDec : StrongUnique UncompressedBlockDirect * StrongDec UncompressedBlockDirect.
@@ -4410,8 +4530,568 @@ Proof.
   auto.
 Defined.
 
-Definition DeflateTest (l : LB) :  sum (list LB) string.
+(*Definition DeflateTest (l : LB) :  sum (list LB) string.
   destruct (DeflateEncodesStrongDec l) as [[o [l' [l'' ?]]]|[reason ?]].
   apply (inl (map to_list o)).
   apply (inr reason).
-Defined.
+Defined.*)
+
+(* TODO: This would not be necessary if we changed the definition of
+strToNat in Shorthand.v, and we should do so and merge this into the
+dissertation text *)
+
+Fixpoint strToNat_' (str : string) (n : nat) : option nat :=
+  match str with
+    | EmptyString => Some n
+    | String "0" str => strToNat_' str ((10 * n) + 0)
+    | String "1" str => strToNat_' str ((10 * n) + 1)
+    | String "2" str => strToNat_' str ((10 * n) + 2)
+    | String "3" str => strToNat_' str ((10 * n) + 3)
+    | String "4" str => strToNat_' str ((10 * n) + 4)
+    | String "5" str => strToNat_' str ((10 * n) + 5)
+    | String "6" str => strToNat_' str ((10 * n) + 6)
+    | String "7" str => strToNat_' str ((10 * n) + 7)
+    | String "8" str => strToNat_' str ((10 * n) + 8)
+    | String "9" str => strToNat_' str ((10 * n) + 9)
+    | _ => None
+  end.
+
+Functional Scheme strToNat_'_ind := Induction for strToNat_' Sort Prop.
+
+Function strToNat' (str : string) := strToNat_' str 0.
+
+Lemma strToNat__ : forall str, strToNat' str = strToNat str.
+Proof.
+  induction str; [reflexivity | compute; reflexivity].
+Qed.
+
+Fixpoint strToZ_ (str : string) (n : Z) : option Z :=
+   match str with
+     | EmptyString => Some n
+     | String "0" str => strToZ_ str ((10 * n) + 0)
+     | String "1" str => strToZ_ str ((10 * n) + 1)
+     | String "2" str => strToZ_ str ((10 * n) + 2)
+     | String "3" str => strToZ_ str ((10 * n) + 3)
+     | String "4" str => strToZ_ str ((10 * n) + 4)
+     | String "5" str => strToZ_ str ((10 * n) + 5)
+     | String "6" str => strToZ_ str ((10 * n) + 6)
+     | String "7" str => strToZ_ str ((10 * n) + 7)
+     | String "8" str => strToZ_ str ((10 * n) + 8)
+     | String "9" str => strToZ_ str ((10 * n) + 9)
+     | _ => None
+   end.
+
+Function strToZ (strn : string) : option Z := strToZ_ strn 0.
+
+Definition D (s : string) :=
+  forceOption Z parseError (strToZ s) ParseError.
+
+Lemma dD_ : forall (strn : string) n m, strToNat_' strn n = Some m ->
+                                        Some (Z.of_nat m) = strToZ_ strn (Z.of_nat n).
+Proof.
+  induction strn as [|chr strn IHstrn].
+
+  intros n m eq.
+  inversion eq.
+  reflexivity.
+
+  intros n m eq.
+
+  (* berzerk *)
+  destruct chr as [b0 b1 b2 b3 b4 b5 b6 b7].
+  destruct b0.
+  destruct b1.
+  destruct b2.
+  destruct b3.
+  inversion eq.
+  destruct b4.
+  destruct b5.
+  destruct b6.
+  inversion eq.
+  destruct b7.
+  inversion eq.
+
+  (* 7 *)
+  assert (Q : strToZ_ (String "7" strn) (Z.of_nat n) = strToZ_ strn (Z.of_nat (10 * n + 7)));
+  [ repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul);
+    reflexivity
+  | ].
+  rewrite -> Q.
+  apply IHstrn.
+  apply eq.
+
+  inversion eq.
+  inversion eq.
+  destruct b3.
+  inversion eq.
+  destruct b4.
+  destruct b5.
+  destruct b6.
+  inversion eq.
+  destruct b7.
+  inversion eq.
+
+  (* 3 *)
+  assert (Q : strToZ_ (String "3" strn) (Z.of_nat n) = strToZ_ strn (Z.of_nat (10 * n + 3)));
+  [ repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul);
+    reflexivity
+  | ].
+  rewrite -> Q.
+  apply IHstrn.
+  apply eq.
+
+  inversion eq.
+  inversion eq.
+  destruct b2.
+  destruct b3.
+  inversion eq.
+  destruct b4.
+  destruct b5.
+  destruct b6.
+  inversion eq.
+  destruct b7.
+  inversion eq.
+
+  (* 5 *)
+  assert (Q : strToZ_ (String "5" strn) (Z.of_nat n) = strToZ_ strn (Z.of_nat (10 * n + 5)));
+  [ repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul);
+    reflexivity
+  | ].
+  rewrite -> Q.
+  apply IHstrn.
+  apply eq.
+
+  inversion eq.
+  inversion eq.
+  destruct b3.
+  destruct b4.
+  destruct b5.
+  destruct b6.
+  inversion eq.
+  destruct b7.
+  inversion eq.
+
+  (* 9 *)
+  assert (Q : strToZ_ (String "9" strn) (Z.of_nat n) = strToZ_ strn (Z.of_nat (10 * n + 9)));
+  [ repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul);
+    reflexivity
+  | ].
+  rewrite -> Q.
+  apply IHstrn.
+  apply eq.
+
+  inversion eq.
+  inversion eq.
+  destruct b4.
+  destruct b5.
+  destruct b6.
+  inversion eq.
+  destruct b7.
+  inversion eq.
+
+  (* 1 *)
+  assert (Q : strToZ_ (String "1" strn) (Z.of_nat n) = strToZ_ strn (Z.of_nat (10 * n + 1)));
+  [ repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul);
+    reflexivity
+  | ].
+  rewrite -> Q.
+  apply IHstrn.
+  apply eq.
+
+  inversion eq.
+  inversion eq.
+  destruct b1.
+  destruct b2.
+  destruct b3.
+  inversion eq.
+  destruct b4.
+  destruct b5.
+  destruct b6.
+  inversion eq.
+  destruct b7.
+  inversion eq.
+
+  (* 6 *)
+  assert (Q : strToZ_ (String "6" strn) (Z.of_nat n) = strToZ_ strn (Z.of_nat (10 * n + 6)));
+  [ repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul);
+    reflexivity
+  | ].
+  rewrite -> Q.
+  apply IHstrn.
+  apply eq.
+
+  inversion eq.
+  inversion eq.
+  destruct b3.
+  inversion eq.
+  destruct b4.
+  destruct b5.
+  destruct b6.
+  inversion eq.
+  destruct b7.
+  inversion eq.
+
+  (* 2 *)
+  assert (Q : strToZ_ (String "2" strn) (Z.of_nat n) = strToZ_ strn (Z.of_nat (10 * n + 2)));
+  [ repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul);
+    reflexivity
+  | ].
+  rewrite -> Q.
+  apply IHstrn.
+  apply eq.
+
+  inversion eq.
+  inversion eq.
+  destruct b2.
+  destruct b3.
+  inversion eq.
+  destruct b4.
+  destruct b5.
+  destruct b6.
+  inversion eq.
+  destruct b7.
+  inversion eq.
+
+  (* 4 *)
+  assert (Q : strToZ_ (String "4" strn) (Z.of_nat n) = strToZ_ strn (Z.of_nat (10 * n + 4)));
+  [ repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul);
+    reflexivity
+  | ].
+  rewrite -> Q.
+  apply IHstrn.
+  apply eq.
+
+  inversion eq.
+  inversion eq.
+  destruct b3.
+  destruct b4.
+  destruct b5.
+  destruct b6.
+  inversion eq.
+  destruct b7.
+  inversion eq.
+
+  (* 8 *)
+  assert (Q : strToZ_ (String "8" strn) (Z.of_nat n) = strToZ_ strn (Z.of_nat (10 * n + 8)));
+  [ repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul);
+    reflexivity
+  | ].
+  rewrite -> Q.
+  apply IHstrn.
+  apply eq.
+
+  inversion eq.
+  inversion eq.
+  destruct b4.
+  destruct b5.
+  destruct b6.
+  inversion eq.
+  destruct b7.
+  inversion eq.
+
+  (* 0 *)
+  assert (Q : strToZ_ (String "0" strn) (Z.of_nat n) = strToZ_ strn (Z.of_nat (10 * n + 0)));
+  [ repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul);
+    reflexivity
+  | ].
+  rewrite -> Q.
+  apply IHstrn.
+  apply eq.
+
+  inversion eq.
+  inversion eq.
+Qed.
+
+Lemma dD : forall (strn : string) n, strToNat strn = Some n -> Some (Z.of_nat n) = strToZ strn.
+Proof.
+  intros strn n eq.
+  rewrite <- strToNat__ in eq.
+  unfold strToNat' in eq.
+  unfold strToZ.
+  replace (0%Z) with (Z.of_nat 0); [ | reflexivity].
+
+  apply dD_.
+  trivial.
+Qed.
+
+Definition distCodeBase' :=
+  [ D"1"     ; D"2"     ; D"3"     ; D"4"     ;
+    D"5"     ; D"7"     ; D"9"     ; D"13"    ;
+    D"17"    ; D"25"    ; D"33"    ; D"49"    ;
+    D"65"    ; D"97"    ; D"129"   ; D"193"   ;
+    D"257"   ; D"385"   ; D"513"   ; D"769"   ;
+    D"1025"  ; D"1537"  ; D"2049"  ; D"3073"  ;
+    D"4097"  ; D"6145"  ; D"8193"  ; D"12289" ;
+    D"16385" ; D"24577" ].
+
+Definition distCodeMax' :=
+  [ D"1"     ; D"2"     ; D"3"     ; D"4"     ;
+    D"6"     ; D"8"     ; D"12"    ; D"16"    ;
+    D"24"    ; D"32"    ; D"48"    ; D"64"    ;
+    D"96"    ; D"128"   ; D"192"   ; D"256"   ;
+    D"384"   ; D"512"   ; D"768"   ; D"1024"  ;
+    D"1536"  ; D"2048"  ; D"3072"  ; D"4096"  ;
+    D"6144"  ; D"8192"  ; D"12288" ; D"16384" ;
+    D"24576" ; D"32768" ].
+
+Lemma distCodeBase'correct : map Z.of_nat distCodeBase = distCodeBase'.
+Proof.
+  unfold distCodeBase.
+  unfold map.
+  unfold d.
+  unfold forceOption.
+  unfold strToNat.
+
+  repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul).
+  reflexivity.
+Qed.
+
+Lemma distCodeMax'correct : map Z.of_nat distCodeMax = distCodeMax'.
+Proof.
+  unfold distCodeMax.
+  unfold map.
+  unfold d.
+  unfold forceOption.
+  unfold strToNat.
+
+  repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul).
+  reflexivity.
+Qed.
+
+Lemma LitLenBounded : forall litlen l lbits,
+                        CompressedLength litlen l lbits -> 3 <= l <= 258.
+Proof.
+  intros litlen l lbits cl.
+  inversion cl as [A B C D E F G H I J K L M N O P].
+  unfold repeatCodeBase in J.
+  unfold repeatCodeMax in K.
+
+  repeat (destruct C as [|C];
+          [ compute in J;
+            compute in K;
+            inversion J;
+            inversion K;
+            abstract omega |
+            (solve [inversion J] || idtac)]).
+Qed.
+
+(* TODO: Woanders. *)
+Function oapp {A B} (f : A -> B) (g : option A) := match g with | None => None | Some a => Some (f a) end.
+
+Lemma nth_error_oapp : forall {A B} (f : A -> B) n l, oapp f (nth_error l n) = nth_error (map f l) n.
+Proof.
+  intros A B f n l.
+  revert f n.
+  induction l.
+  intros f n.
+  destruct n; reflexivity.
+  intros f n.
+  destruct n.
+  reflexivity.
+  apply IHl.
+Qed.
+
+Lemma DistBounded : forall denc dist dbits,
+                      CompressedDist denc dist dbits -> 1 <= dist <= d "32768".
+Proof.
+  intros denc dist dbits cd.
+  inversion cd as [A B C D_ E F G H I J K L M N O P].
+  assert (B0 : (Z.of_nat B >= 0)%Z).
+  omega.
+
+  assert (Cb : oapp Z.of_nat (nth_error distCodeBase C) = nth_error distCodeBase' C).
+  rewrite <- distCodeBase'correct.
+  apply nth_error_oapp.
+
+  rewrite -> J in Cb.
+  simpl in Cb.
+  
+  assert (Cm : oapp Z.of_nat (nth_error distCodeMax C) = nth_error distCodeMax' C).
+  rewrite <- distCodeMax'correct.
+  apply nth_error_oapp.
+
+  rewrite -> K in Cm.
+  simpl in Cm.
+
+  assert (Max : Z.of_nat (d "32768") = D "32768"%string).
+  unfold d.
+  unfold D.
+  unfold forceOption.
+  unfold strToNat.
+  unfold strToZ.
+  unfold strToZ_.
+  repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul).
+  reflexivity.
+
+  assert (1%Z <= (Z.of_nat A) + (Z.of_nat B) <= Z.of_nat (d "32768"))%Z.
+  rewrite -> Max.
+
+  repeat (destruct C as [|C];
+         [ inversion Cb as [Cb_];
+           rewrite -> Cb_;
+           inversion Cm as [Cm_];
+           unfold D in Cm_;
+           unfold forceOption in Cm_;
+           unfold strToZ in Cm_;
+           unfold strToZ_ in Cm_;
+           unfold D;
+           unfold forceOption;
+           unfold strToZ;
+           unfold strToZ_;
+           abstract omega | ]).
+
+  destruct C as [|C].
+  inversion Cm as [Cm_].  
+  assert (D "24576" <= D "32768")%Z; [intro Q; inversion Q|].
+  assert (Z.of_nat A + Z.of_nat B <= Z.of_nat D_)%Z.
+  omega.
+  split.
+  inversion Cb as [Cb_].
+  rewrite -> Cb_.
+  assert (1 <= D "16385")%Z; [intro Q; inversion Q|].
+  omega.
+  omega.
+
+  destruct C as [|C].
+  inversion Cm as [Cm_].
+  split.
+  inversion Cb as [Cb_].
+  rewrite -> Cb_.
+  assert (1 <= D "24577")%Z; [intro Q; inversion Q|].
+  omega.
+  omega.
+
+  destruct C as [|C].
+  inversion Cm as [Cm_].
+  inversion Cm.
+  omega.
+Qed.
+
+Lemma CompressedSwbrBounded : forall litlen dist swbr l,
+                                CompressedSWBR litlen dist swbr l ->
+                                BackRefsBounded 3 258 1 (d"32768") swbr.
+Proof.
+  intros litlen dist.
+
+  induction swbr.
+  intros.
+  constructor.
+
+  intros l cswbr.
+  destruct a as [a | [a b]].
+  constructor.
+  constructor.
+  inversion cswbr as [|? l2 ? ? ? R|].
+  apply (IHswbr l2).
+  exact R.
+
+  constructor.
+  inversion cswbr.
+
+  match goal with
+    | K : CompressedDist _ _ _ |- _ => apply DistBounded in K
+  end.
+  match goal with
+    | K : CompressedLength _ _ _ |- _ => apply LitLenBounded in K
+  end.
+  constructor; omega.
+  inversion cswbr.
+  eapply IHswbr.
+  match goal with
+    | K : CompressedSWBR _ _ swbr _ |- _ => exact K
+  end.
+Qed.
+
+Lemma DynamicallyCompressedBlockBounded
+: forall swbr l, DynamicallyCompressedBlock swbr l ->
+                 BackRefsBounded 3 258 1 (d"32768") swbr.
+Proof.
+  intros swbr l dcb.
+  inversion dcb.
+  match goal with
+    | K : pi2 _ _ = swbr |- _ => compute in K; rewrite <- K
+  end.
+  eapply CompressedSwbrBounded.
+  eauto.
+Qed.
+
+Lemma StaticallyCompressedBlockBounded
+: forall swbr l, StaticallyCompressedBlock swbr l ->
+                 BackRefsBounded 3 258 1 (d"32768") swbr.
+Proof.
+  intros swbr l scb.
+  inversion scb.
+  eapply CompressedSwbrBounded.
+  eauto.
+Qed.
+
+Lemma nBytesDirectBounded : forall n l swbr, nBytesDirect n swbr l -> 
+                                             BackRefsBounded 3 258 1 (d"32768") swbr.
+Proof.
+  (********************)
+  induction n.
+  intros l swbr nbd.
+  inversion nbd as [A B].
+  rewrite -> A.
+  constructor.
+
+  intros l swbr nbd.
+  inversion nbd as [k t c d A].
+  
+  
+  inversion A.
+  constructor.
+  constructor.
+  eapply IHn.
+  eauto.
+Qed.
+
+Lemma UncompressedBlockDirectBounded
+: forall swbr l, UncompressedBlockDirect swbr l -> BackRefsBounded 3 258 1 (d"32768") swbr.
+Proof.
+  intros swbr l ucb.
+  inversion ucb.
+  match goal with
+    | K : pi2 _ _ = swbr |- _ => compute in K; rewrite <- K
+  end.
+
+  match goal with
+    | K : ((readBitsLSB 16) >>= _) _ _ |- _ => inversion K
+  end.
+
+  match goal with
+    | K : _ /\ nBytesDirect _ ?A _,
+      L : pi2 _ ?A = _ |- _ =>
+      destruct K as [K1 K2];
+        eapply nBytesDirectBounded;
+        compute in L; rewrite <- L; eauto
+  end.
+Qed.
+
+Lemma OneBlockWithPaddingBounded
+: forall swbr n l, OneBlockWithPadding swbr n l ->
+                   BackRefsBounded 3 258 1 (d"32768") swbr.
+Proof.
+  intros swbr n l obwp.
+  inversion obwp.
+  eapply DynamicallyCompressedBlockBounded.
+  eauto.
+  eapply StaticallyCompressedBlockBounded.
+  eauto.
+  eapply UncompressedBlockDirectBounded.
+  eauto.
+Qed.
+
+Lemma ManyBlocksBounded : forall n swbr l,
+                            ManyBlocks n swbr l ->
+                            BackRefsBounded 3 258 1 (d"32768") swbr.
+Proof.
+  intros n swbr l mb.
+  induction mb.
+  eapply OneBlockWithPaddingBounded.
+  eauto.
+  apply app_forall.
+  eapply OneBlockWithPaddingBounded.
+  eauto.
+  auto.
+Qed.

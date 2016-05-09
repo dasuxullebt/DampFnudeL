@@ -8,14 +8,18 @@ Require Import Combi.
 Require Import Shorthand.
 Require Import LSB.
 Require Import String.
+Require Import Repeat.
+Require Import ArrayInduction.
 
 (** A list with backreferences. Every element is either a direct byte,
 or a pair of numbers, the first component being the length, the second
 component being the distance. We do not use an own inductive
 definition here to be able to use list functions. *)
 
-Function SequenceWithBackRefs A := (list (A + (nat * nat))%type).
-
+(* SWBR1 *)
+Function SequenceWithBackRefs A := (list (A+(nat*nat))%type).
+(* SWBR2 *)
+				   
 Fixpoint brlen {A} (l : SequenceWithBackRefs A) : nat :=
   match l with
     | nil => 0
@@ -42,9 +46,12 @@ Proof.
   omega.
 Qed.
 
-Inductive nthLast {A : Set} : forall (n : nat) (L : list A) (a : A), Prop :=
+(* NTHLAST1 *)				     
+Inductive nthLast {A : Set}
+ : forall (n : nat) (L : list A) (a : A), Prop :=
 | makeNthLast : forall L M a, nthLast (ll (a :: M)) (L ++ a :: M) a.
-
+(* NTHLAST2 *)
+				     
 (** Example *)
 Goal nthLast 1 [0; 1; 2] 2.
 Proof.
@@ -282,8 +289,11 @@ Proof.
   trivial.
 Qed.
 
+(* EXAMPLE1 *)
 (** Example from RFC Page 10 with X = 1 and Y = 2*)
-Goal ResolveBackReference 5 2 [1; 2] [1; 2;  1; 2; 1; 2; 1] (** = [1; 2] ++ [1; 2; 1; 2; 1] *).
+Goal ResolveBackReference 5 2 [1; 2] [1; 2;  1; 2; 1; 2; 1]
+                         (** = [1; 2] ++ [1; 2; 1; 2; 1] *).
+(* EXAMPLE2 *)
 Proof.
   apply (rbrSucc 4 2 [1; 2] [1; 2; 1; 2; 1; 2] 1).
   apply (rbrSucc 3 2 [1; 2] [1; 2; 1; 2; 1] 2).
@@ -327,112 +337,6 @@ Proof.
   rewrite <- Feq.
   reflexivity.
 Qed.
-
-(*Theorem resolveNthLast' : forall {A : Set} (n : nat) (L : list A),
-                            {a | nthLast n (rev L) a} + ({a | nthLast n (rev L) a} -> False).
-Proof.
-  intros A n L.
-  destruct n.
-  apply inr.
-  intro Q.
-  destruct Q as [a nl].
-  inversion nl.
-  destruct (slice_list n L) as [[l1 [l2 [lapp l1l]]]|no].
-  destruct l2 as [|l2a l2].
-  apply inr.
-  intro Q.
-  destruct Q as [a nl].
-  inversion nl.
-
-  assert (K : rev (L0 ++ a0 :: M) = L).
-  rewrite <- rev_involutive.
-  f_equal.
-  auto.
-
-  rewrite <- lapp in K.
-  rewrite -> rev_app_distr in K.
-  rewrite -> cons_rev_1 in K.
-  destruct (app_ll (rev M) ([a0] ++ rev L0) l1 []) as [K1 K2].
-  rewrite -> app_assoc.
-  exact K.
-  rewrite -> rev_length.
-  rewrite -> l1l.
-  trivial.
-  inversion K2.
-
-  apply inl.
-  exists l2a.
-  replace (rev L) with ((rev l2) ++ l2a :: rev l1).
-  replace (S n) with (ll (l2a :: rev l1)).
-  apply (makeNthLast (rev l2) (rev l1) l2a).
-  replace (ll (_ :: rev l1)) with (S (ll (rev l1))).
-  f_equal.
-  rewrite -> rev_length.
-  exact l1l.
-  reflexivity.
-  rewrite <- lapp.
-  rewrite -> rev_app_distr.
-  rewrite -> cons_rev_1.
-  rewrite <- app_assoc.
-  reflexivity.
-
-  apply inr.
-  intro Q.
-  destruct Q as [a nl].
-  inversion nl.
-  contradict no.
-  exists (rev M).
-  exists (rev (L0 ++ [a0])).
-  split.
-  rewrite <- rev_app_distr.
-  rewrite <- app_assoc.
-  rewrite <- rev_involutive.
-  f_equal.
-  auto.
-  rewrite -> rev_length.
-  trivial.
-Defined.
-
-Theorem ResolveBackReferenceDec' : forall {A : Set} (len dist : nat) (input : list A), 
-                                     {output | ResolveBackReference len dist (rev input) (rev output)} +
-                                     ({output | ResolveBackReference len dist (rev input) (rev output)} -> False).
-Proof.
-  intro A.
-  induction len.
-  intros dist input.
-  apply inl.
-  exists input.
-  constructor.
-  intros dist input.
-  destruct (IHlen dist input) as [[o rbr]|no].
-  destruct (resolveNthLast' dist o) as [[a nl]|no].
-  apply inl.
-  exists (a :: o).
-  rewrite -> cons_rev_1.
-  constructor.
-  exact rbr.
-  exact nl.
-
-  apply inr.
-  intro Q.
-  destruct Q as [o' rbr'].
-  inversion rbr'.
-  contradict no.
-  assert (K : rev o = output1).
-  apply (ResolveBackReferenceUnique _ _ _ _ _ rbr H1).
-  rewrite -> K.
-  exists X.
-  auto.
-
-  apply inr.
-  intro Q.
-  destruct Q as [o rbr].
-  inversion rbr.
-  contradict no.
-  exists (rev output1).
-  rewrite -> rev_involutive.
-  auto.
-Defined.*)
 
 Theorem ResolveBackReferenceDec : forall {A : Set} (len dist : nat) (input : list A), 
                                     {output | ResolveBackReference len dist input output} +
@@ -593,105 +497,6 @@ Proof.
   trivial.
 Qed.
 
-(** code that was more efficient before we used intrinsics ...
-
-Theorem ResolveBackReferencesDec' : forall {A : Set} (input : SequenceWithBackRefs A),
-                                      {output | ResolveBackReferences (rev input) (rev output)} +
-                                      ({output | ResolveBackReferences (rev input) (rev output)} -> False).
-Proof.
-  intro A.
-  induction input as [| a input].
-  apply inl.
-  exists (@nil A).
-  constructor.
-
-  destruct IHinput as [[o' rbr']|no].
-  destruct a as [a | [len dist]].
-  apply inl.
-  exists (a :: o').
-  rewrite -> cons_rev_1.
-  rewrite -> cons_rev_1.
-  constructor.
-  auto.
-  
-  destruct (ResolveBackReferenceDec' len dist o') as [[newout Newout]|no].
-  apply inl.
-  exists newout.
-  rewrite -> cons_rev_1.
-  apply (ResolveRef (rev input) (rev o') (rev newout) len dist).
-  trivial.
-  trivial.
-
-  apply inr.
-  intro Q.
-  destruct Q as [output rbr].
-  rewrite -> cons_rev_1 in rbr.
-  inversion rbr.
-  destruct (rev input).
-  inversion H0.
-  inversion H0.
-  destruct (app_ll_r a [inl c] (rev input) [inr (len, dist)]) as [K1 K2].
-  auto.
-  auto.
-  inversion K2.
-  contradict no.
-  exists output.
-  destruct (app_ll_r a [inr (len0, dist0)] (rev input) [inr (len, dist)]) as [K1 K2].
-  auto.
-  auto.
-  inversion K2 as [[K3 K4]].
-  rewrite <- K3.
-  rewrite <- K4.
-  rewrite -> K1 in H0.
-  rewrite <- (ResolveBackReferencesUnique _ _ _ H0 rbr').
-  auto.
-
-  apply inr.
-  intro Q.
-  destruct Q as [output rbr'].
-  rewrite -> cons_rev_1 in rbr'.
-  inversion rbr'.
-  destruct (rev input).
-  inversion H0.
-  inversion H0.
-  contradict no.
-  destruct (app_ll_r a0 [inl c] (rev input) [a]) as [K1 K2].
-  auto.
-  auto.
-  exists (rev b).
-  rewrite <- K1.
-  rewrite -> rev_involutive.
-  auto.
-  contradict no.
-  destruct (app_ll_r a0 [inr (len, dist)] (rev input) [a]) as [K1 K2].
-  auto.
-  auto.
-  exists (rev b).
-  rewrite <- K1.
-  rewrite -> rev_involutive.
-  auto.
-Defined.
-
-Theorem ResolveBackReferencesDec : forall {A : Set} (input : SequenceWithBackRefs A),
-                                     {output | ResolveBackReferences input output} +
-                                     ({output | ResolveBackReferences input output} -> False).
-Proof.
-  intros A input.
-  destruct (ResolveBackReferencesDec' (rev input)) as [[output' rbr']|no].
-  apply inl.
-  rewrite -> rev_involutive in rbr'.
-  exists (rev output').
-  exact rbr'.
-
-  apply inr.
-  intro Q.
-  destruct Q as [output rbr].
-  contradict no.
-  exists (rev output).
-  rewrite -> rev_involutive.
-  rewrite -> rev_involutive.
-  exact rbr.
-Defined. *)
 Theorem ResolveBackReferencesDec : forall {A : Set} (input : SequenceWithBackRefs A),
                                      {output | ResolveBackReferences input output} +
                                      ({output | ResolveBackReferences input output} -> False).
@@ -788,3 +593,1418 @@ Proof.
   auto.
   auto.
 Defined.
+
+(* backreferences without lengths *)
+
+(** Step 1: (len, dist) -> dist, dist, ... n times *)
+
+(* BACKREFSLENGHTONE1 *)
+Fixpoint BackRefsLengthOne {A : Set}
+         (swbr : SequenceWithBackRefs A) :=
+  match swbr with
+    | [] => []
+    | (inl x :: r) => inl x :: BackRefsLengthOne r
+    | (inr (l, d) :: r) => repeat l (inr d) ++
+                                  (BackRefsLengthOne r)
+  end.
+(* BACKREFSLENGHTONE2 *)
+
+Functional Scheme BackRefsLengthOne_ind := Induction for BackRefsLengthOne Sort Prop.
+
+Function BackRefsLengthOneMap {A : Set} (l : list (A + nat)%type) :=
+  match l with
+    | [] => []
+    | inl x :: r => inl x :: BackRefsLengthOneMap r
+    | inr d :: r => inr (1, d) :: BackRefsLengthOneMap r
+  end.
+
+Lemma BackRefsLengthOneApp :
+  forall {A : Set} (a b : SequenceWithBackRefs A),
+    BackRefsLengthOne (a ++ b) =
+    BackRefsLengthOne a ++ BackRefsLengthOne b.
+Proof.
+  intros A a.
+  induction a as [|x a IHa];
+  [ auto
+  |].
+  destruct x as [x | [l d]];
+  [ intro b;
+    simpl;
+    rewrite -> IHa;
+    reflexivity
+  | intro b;
+    simpl;
+    rewrite <- app_assoc;
+    rewrite -> IHa;
+    reflexivity ].
+Qed.
+
+Lemma BackRefsLengthOneCorrect'' :
+  forall {X : Set} l d A B (C : X),
+    (ResolveBackReference l d A B /\
+     ResolveBackReference 1 d B (B ++ [C])) <->
+    ResolveBackReference (S l) d A (B ++ [C]).
+Proof.
+  intros X l d A B C.
+  split.
+  intros [D E]. 
+  revert l d A B C D E.  
+  induction l.
+
+  intros d A B C rbr0 rbr1.
+  inversion rbr0.
+  trivial.
+  
+  intros d A B C rbrsl rbr1.
+  constructor.
+  trivial.
+  inversion rbr1 as [| D E F G H I J K L M N].
+  destruct (app_ll_r G [H] B [C] N) as [O P]; [reflexivity | ].
+  inversion P as [Q].
+  rewrite <- Q.
+  rewrite -> O in J.
+  trivial.
+
+  intro rbrsl.
+  inversion rbrsl as [| D E F G H I J K L M N].
+  split.
+  destruct (app_ll_r G [H] B [C] N) as [O P]; [reflexivity | ].
+  rewrite -> O in I.
+  trivial.
+  constructor.
+  destruct (app_ll_r G [H] B [C] N) as [O P]; [reflexivity | ].
+  rewrite -> O.
+  constructor.
+  trivial.  
+Qed.
+
+Lemma BackRefsLengthOneCorrect' :
+  forall {A : Set} a len dist (l : list A),
+    ResolveBackReferences (a ++ [inr (len, dist)]) l ->
+    ResolveBackReferences (a ++ (repeat len (inr (1, dist)))) l.
+Proof.
+  intros A a len.
+  induction len as [|len IHlen].
+  
+  intros dist l rbr.
+  inversion rbr as [B C|B C D E F G|B C D E F G H I J].
+  destruct a; inversion B.
+  destruct (app_ll_r _ _ _ _ F) as [H I]; [reflexivity | ].
+  inversion I.
+  
+  destruct (app_ll_r _ _ _ _ I) as [K L]; [reflexivity | ].
+  inversion L as [[M N]].
+  rewrite -> M in H.
+  rewrite -> N in H.
+  inversion H as [O P Q R S T|].
+  rewrite <- T.
+  simpl.
+  rewrite -> app_nil_r.
+  rewrite <- K.
+  trivial.
+
+  intros dist l rbr.
+  inversion rbr as [B C|B C D E F G|B C D E F G H I J].
+  destruct a; inversion B.
+  destruct (app_ll_r _ _ _ _ F) as [I J]; [reflexivity | ].
+  inversion J.
+
+  destruct (app_ll_r _ _ _ _ I) as [K L]; [reflexivity | ].
+  inversion L as [[M N]].
+  rewrite -> M in H.
+  rewrite -> N in H.
+  inversion H as [|O P Q R S T U V W X Y].
+
+  replace (Datatypes.S len) with (len + 1); [ | omega].
+  rewrite <- repeat_add.
+  simpl.
+
+  rewrite -> app_assoc.
+  econstructor.
+  apply IHlen.
+  replace [inr A (len, dist)] with ([] ++ [inr A (len, dist)]).
+  eapply ResolveRef.
+  rewrite <- K.
+  exact G.
+  exact T.
+  reflexivity. 
+
+  constructor.
+  constructor.
+  trivial.
+Qed.
+
+
+Lemma BackRefsLengthOneCorrect :
+  forall {A : Set} (l : list A) swbr,
+    ResolveBackReferences swbr l ->
+    ResolveBackReferences (map (fun x =>
+                                  match x with
+                                    | inl c => inl c
+                                    | inr d => inr (1, d)
+                                  end) (BackRefsLengthOne swbr)) l.
+Proof.
+  intros A l c.
+  revert c l.
+  apply (rev_ind (fun c => forall (l : list A),
+                             ResolveBackReferences c l ->
+                             ResolveBackReferences (map (fun x =>
+                                                           match x with
+                                                             | inl c => inl c
+                                                             | inr d => inr (1, d)
+                                                           end) 
+                                                        (BackRefsLengthOne c)) l));
+  [ intros l rbrl;
+    inversion rbrl;
+    solve
+      [ constructor
+      | match goal with
+          | A : ?a ++ [?c] = [] |- _ => destruct a; inversion A
+        end ]
+  | ].
+  intros x c IHc l rbrl.  
+  inversion rbrl as [|B C D E F G|].
+  + constructor.
+  + rewrite -> BackRefsLengthOneApp.
+    rewrite -> map_app.
+    simpl.
+    constructor.
+    assert (K : B = c /\ [inl D] = [x]);
+    [ apply app_ll_r; [trivial | reflexivity]
+    | destruct K as [K1 K2];
+      rewrite -> K1;
+      apply IHc;
+      rewrite <- K1;
+      trivial ].
+  + rewrite -> BackRefsLengthOneApp.
+    rewrite -> map_app.
+    simpl.
+    rewrite -> app_nil_r.
+    rewrite -> repeat_map.
+    apply BackRefsLengthOneCorrect'.
+    destruct (app_ll_r _ _ _ _ H).
+    reflexivity.
+  
+    econstructor.
+    rewrite -> H3. (* TODO *)
+    apply IHc.
+    rewrite <- H3.
+    apply H0.
+    trivial.
+Qed.
+
+Fixpoint BackRefsLengthOne_ {A : Set}
+         (swbr : SequenceWithBackRefs A) :=
+  match swbr with
+    | [] => []
+    | (inl x :: r) => inl x :: BackRefsLengthOne_ r
+    | (inr (l, d) :: r) => repeat l (inr (1, d)) ++ (BackRefsLengthOne_ r)
+  end.
+
+Functional Scheme BackRefsLengthOne__ind := Induction for BackRefsLengthOne_ Sort Prop.
+
+Lemma BackRefsLengthOne_Lemma : forall {A : Set} (swbr : SequenceWithBackRefs A),
+                                  BackRefsLengthOne_ swbr =
+                                  (map (fun x =>
+                                          match x with
+                                            | inl c => inl c
+                                            | inr d => inr (1, d)
+                                          end) (BackRefsLengthOne swbr)).
+Proof.
+  intro A.
+  induction swbr as [|[c | [l d]] swbr IH].
+  + reflexivity.
+  + simpl.
+    rewrite -> IH.
+    reflexivity.
+  + simpl.
+    rewrite -> map_app.
+    rewrite -> repeat_map.
+    rewrite -> IH.
+    reflexivity.
+Qed.
+
+Lemma BackRefsLengthOneBounded :
+  forall {A : Set} (swbr : SequenceWithBackRefs A)
+         minlen maxlen mindist maxdist,
+    BackRefsBounded minlen maxlen mindist maxdist swbr ->
+    BackRefsBounded 1 1 mindist maxdist (map (fun x =>
+                                          match x with
+                                            | inl c => inl c
+                                            | inr d => inr (1, d)
+                                          end) (BackRefsLengthOne swbr)).
+Proof.
+  intros A swbr minlen maxlen mindist maxdist brb.
+  rewrite <- BackRefsLengthOne_Lemma.
+  functional induction (BackRefsLengthOne_ swbr).
+  constructor.
+  constructor.
+  constructor.
+  apply IHl.
+  inversion brb.
+  trivial.
+  apply app_forall.
+  apply repeat_forall.
+  constructor.
+  omega.
+  omega.
+  inversion brb.
+  inversion H1. (* TODO *)
+  auto.
+  inversion brb.
+  inversion H1.
+  auto.
+  apply IHl.
+  inversion brb.
+  auto.
+Qed.
+
+Lemma BackRefsLengthOneLength_ :
+  forall {A : Set} (swbr : SequenceWithBackRefs A) mnd mxd,
+    BackRefsBounded 1 1 mnd mxd swbr ->
+    brlen swbr = ll swbr.
+Proof.
+  induction swbr as [| a swbr IHswbr].
+  intros.
+  reflexivity.
+  intros mnd mxd brb.
+  destruct a as [a | [b c]].
+  simpl.
+  f_equal.
+  apply (IHswbr mnd mxd).
+  inversion brb.
+  trivial.
+
+  inversion brb.
+  match goal with
+    | Quak : BackRefBounded 1 1 mnd mxd (inr (b, c)) |- _ => inversion Quak
+  end.
+  replace b with 1; [ | omega].
+  simpl.
+  f_equal.
+  eapply IHswbr.
+  match goal with
+    | Quak : Forall (BackRefBounded 1 1 mnd mxd) swbr |- _ => exact Quak
+  end.
+Qed.
+
+Lemma BackRefsLengthOneLength :
+  forall {A : Set} (swbr : SequenceWithBackRefs A) l mnd mxd,
+    BackRefsBounded 1 1 mnd mxd swbr ->
+    ResolveBackReferences swbr l ->
+    ll swbr = ll l.
+Proof.
+  intros A swbr l mnd mxd brb rbr.
+  erewrite <- BackRefsLengthOneLength_.
+  erewrite -> rbrs_brlen.
+  reflexivity.
+  trivial.
+  exact brb.
+Qed.
+
+(* TODO: This proof is so extremely gross :( *)
+Lemma BackRefLemma : forall {A : Set} (n k mnd mxd : nat)
+                            (input : SequenceWithBackRefs A) (output : list A),
+                       BackRefsBounded 1 1 mnd mxd input ->
+                       ResolveBackReferences input output ->
+                       nth_error input n = Some (inr (1, k)) ->
+                       nth_error output n = nth_error output (n - k).
+Proof.
+  intros a n k mnd mxd input output brb rbr nerr.
+  assert (Loutput : ll input = ll output);
+  [ eapply BackRefsLengthOneLength; eauto
+  | ].
+
+  destruct (proj1 (nth_split _ _ _) nerr) as [o' [o'' [olen oapp]]].
+
+  revert o'' n k mnd mxd input output brb rbr nerr Loutput o' olen oapp.
+  apply (rev_ind (fun o'' => forall (n k mnd mxd : nat)
+     (input : SequenceWithBackRefs a) (output : list a),
+   BackRefsBounded 1 1 mnd mxd input ->
+   ResolveBackReferences input output ->
+   nth_error input n = Some (inr (1, k)) ->
+   ll input = ll output ->
+   forall o' : list (a + nat * nat),
+   ll o' = n ->
+   input = o' ++ [inr (1, k)] ++ o'' ->
+   nth_error output n = nth_error output (n - k))).
+
+  intros n k mnd mxd input output brb rbr nerr Loutput o' olen oapp.
+  rewrite -> app_nil_r in oapp.
+  rewrite -> oapp in rbr.
+  inversion rbr as [ |A B C D E F|A B C D E F G H I];
+  [ rewrite -> nth_error_nil;
+    symmetry; apply nth_error_nil
+  | apply app_inj_tail in E;
+    destruct E as [? E];
+    inversion E
+  | ].
+  assert (D1 : D = 1); (* TODO: MAKE THIS PROOF NAME INDEPENDENT !!!1! *)
+  [ rewrite <- H in oapp;
+    rewrite -> oapp in brb;
+    unfold BackRefsBounded in brb;
+    apply forall_app in brb;
+    destruct brb as [brb1 brb2];
+    inversion brb2;
+    [ match goal with
+        | K : BackRefBounded 1 1 mnd mxd (inr (D, E)) |- _ => inversion K
+      end;
+      omega ]
+  | ].
+  rewrite -> D1 in G.
+  inversion G.
+  inversion H2.
+  rewrite (proj2 (nth_split _ n X)); [ | ].
+  symmetry.
+  eapply (proj2 (nth_split _ (n - k) X)); [ ].
+  exists L.
+  exists (M ++ [X]).
+  split; [ | ].
+  replace k with E; [ | ].
+  assert (ll output = S (ll (L ++ a0 :: M))).
+  rewrite <- H5.
+  rewrite -> app_length.
+  simpl.
+  rewrite <- H7.
+  omega.
+  rewrite -> app_length in H9.
+  rewrite <- Loutput in H9.
+  rewrite -> oapp in H9.
+  rewrite -> app_length in H9.
+  rewrite olen in H9.
+  simpl in H9.
+  simpl in H6.
+  rewrite -> H6 in H9.
+  omega.
+  apply app_inj_tail in H.
+  destruct H.
+  inversion H9.
+  reflexivity.
+
+  simpl.
+  rewrite <- app_assoc.
+  rewrite <- app_comm_cons.
+  reflexivity.
+
+  exists (L ++ X :: M) (@nil a).
+  split.
+  assert (ll output = S (ll (L ++ a0 :: M))).
+  rewrite <- H5.
+  rewrite -> app_length.
+  simpl.
+  rewrite <- H7.
+  omega.
+
+  rewrite <- Loutput in H9.
+  rewrite -> oapp in H9.
+  rewrite -> app_length in H9.
+  simpl in H9.
+  rewrite -> olen in H9.
+  rewrite -> H8 in H9.
+  omega.
+  rewrite -> app_nil_r.
+  reflexivity.
+
+  (* induction step *)
+  intros x l IHl n k mnd mxd input output brb rbr nerr Loutput o' llo inp.
+  rewrite -> inp in rbr.
+  repeat (rewrite -> app_assoc in rbr).
+  inversion rbr.
+
+  (* inversion rbr, step 1 *)
+
+  rewrite -> nth_error_nil.
+  symmetry.
+  apply nth_error_nil.
+
+  (* inversion rbr, step 2 *)
+
+  replace (nth_error (b ++ [c]) n) with (nth_error b n).
+  replace (nth_error (b ++ [c]) (n - k)) with (nth_error b (n - k)).
+  eapply IHl.
+  rewrite -> inp in brb.
+  repeat (rewrite -> app_assoc in brb).
+  apply forall_app in brb.
+  destruct brb as [brb1 brb2].
+  apply brb1.
+  inversion rbr.
+  apply app_inj_tail in H.
+  rewrite <- (proj1 H).
+  exact H0.
+  apply app_inj_tail in H.
+  rewrite <- (proj1 H).
+  exact H0.
+  apply app_inj_tail in H.
+  rewrite <- (proj1 H).
+  exact H0.
+  
+  apply (proj2 (nth_split _ _ _)).
+  exists o' l.
+  split.
+  trivial.
+  symmetry.
+  apply app_assoc.
+
+  assert (K : ll (((o' ++ [inr (1, k)]) ++ l) ++ [x]) = ll (b ++ [c])).
+  rewrite -> H1.
+  repeat (rewrite -> app_assoc in inp).
+  rewrite <- inp.
+  exact Loutput.
+  rewrite -> app_length in K.
+  replace (ll (b ++ [c])) with (ll b + 1) in K.
+  simpl in K.
+  omega.
+  rewrite -> app_length.
+  reflexivity.
+  exact llo.
+  symmetry.
+  apply app_assoc.
+  apply nth_extend.
+  assert (ll b + 1 = ll input).
+  rewrite -> Loutput.
+  rewrite <- H1.
+  rewrite -> app_length.
+  reflexivity.
+  assert (ll input >= S (S n)).
+  rewrite -> inp.
+  rewrite -> app_length.
+  rewrite -> app_length.
+  rewrite -> app_length.
+  simpl.
+  omega.
+  omega.
+
+  apply nth_extend.
+  assert (ll b + 1 = ll input).
+  rewrite -> Loutput.
+  rewrite <- H1.
+  rewrite -> app_length.
+  reflexivity.
+  rewrite -> inp in H2.
+  rewrite -> app_length in H2.
+  rewrite -> llo in H2.
+  rewrite -> app_length in H2.
+  rewrite -> app_length in H2.
+  simpl in H2.
+  omega.
+
+  (* inversion rbr, step 3 *)
+
+  assert (L1: len = 1).
+  apply app_inj_tail in H.
+  rewrite -> inp in brb.
+  rewrite <- (proj2 H) in brb.
+  repeat (rewrite -> app_assoc in brb).
+  apply forall_app in brb.
+  destruct brb as [? brb2].
+  inversion brb2.
+  inversion H6.
+  omega.
+
+  rewrite -> L1 in H1.
+  inversion H1.
+
+  replace (nth_error (output1 ++ [X]) n) with (nth_error output1 n).
+  replace (nth_error (output1 ++ [X]) (n - k)) with (nth_error output1 (n - k)).
+  eapply IHl.
+  rewrite -> inp in brb.
+  repeat (rewrite -> app_assoc in brb).
+  apply forall_app in brb.
+  destruct brb as [brb1 brb2].
+  apply brb1.
+
+  apply app_inj_tail in H.
+  destruct H.
+  rewrite <- H.
+  inversion H4.
+  rewrite <- H13.
+  trivial.
+
+  apply (proj2 (nth_split _ _ _)).
+  exists o' l.
+  split.
+  trivial.
+  symmetry.
+  apply app_assoc.
+
+  assert (K : ll (((o' ++ [inr (1, k)]) ++ l) ++ [x]) = ll (output1 ++ [X])).
+  repeat (rewrite -> app_assoc in inp).
+  rewrite <- inp.
+  rewrite -> H8.
+  exact Loutput.
+  rewrite -> app_length in K.
+  replace (ll (output1 ++ [X])) with (ll output1 + 1) in K.
+  simpl in K.
+  omega.
+  rewrite -> app_length.
+  reflexivity.
+  exact llo.
+  symmetry.
+  apply app_assoc.
+  apply nth_extend.
+
+  assert (ll output1 + 1 = ll input).
+  rewrite -> Loutput.
+  rewrite <- H8.
+  rewrite -> app_length.
+  reflexivity.
+  assert (ll input >= S (S n)).
+  rewrite -> inp.
+  rewrite -> app_length.
+  rewrite -> app_length.
+  rewrite -> app_length.
+  simpl.
+  omega.
+  omega.
+
+  apply nth_extend.
+  assert (ll output1 + 1 = ll input).
+  rewrite -> Loutput.
+  rewrite <- H8.
+  rewrite -> app_length.
+  reflexivity.
+  rewrite -> inp in H9.
+  rewrite -> app_length in H9.
+  rewrite -> llo in H9.
+  rewrite -> app_length in H9.
+  rewrite -> app_length in H9.
+  simpl in H9.
+  omega.
+Qed.
+
+(* TODO: woanders *)
+
+Lemma nth_error_last : forall {A : Set} (l : list A) (o : A),
+    nth_error (l ++ [o]) (ll l) = Some o.
+Proof.
+  intro A.
+  induction l as [|x l IHl].
+  + reflexivity.
+  + intro a.
+    simpl.
+    apply IHl.
+Qed.
+    
+Lemma BackRefLemma2 : forall {A : Set} (a : A) (n mnd mxd : nat)
+                             (input : SequenceWithBackRefs A) (output : list A),
+    BackRefsBounded 1 1 mnd mxd input ->
+    ResolveBackReferences input output ->
+    nth_error input n = Some (inl a) ->
+    nth_error output n = Some a.
+Proof.
+  intros A a n mnd mxd input output brb rbr nerr;
+  destruct (proj1 (nth_split _ _ _) nerr) as [o' [o'' [olen oapp]]];
+  revert o'' a n mnd mxd input output brb rbr nerr o' olen oapp;
+  apply (rev_ind (fun (o'' : list (A + nat * nat)) =>
+                    forall (a : A) (n mnd mxd : nat)
+                           (input : SequenceWithBackRefs A) (output : list A),
+                      BackRefsBounded 1 1 mnd mxd input ->
+                      ResolveBackReferences input output ->
+                      nth_error input n = Some (inl a) ->
+                      forall o' : list (A + nat * nat),
+                        ll o' = n -> input = o' ++ [inl a] ++ o'' ->
+                        nth_error output n = Some a));
+  [ (* o'' = [] *)
+    intros a n mnd mxd input output brb rbr nerr o' llo' inpo';
+    assert (L : ll input = ll output);
+      [ eapply BackRefsLengthOneLength; eauto
+      |  simpl in inpo';
+        rewrite -> inpo' in rbr;
+        inversion rbr as [|B C D E F G|B C D E F G H I J];
+        [ destruct o';
+          match goal with
+          | H : [] = _ ++ _ |- _ => inversion H
+          end
+        | assert (K : nth_error (C ++ [D]) n = Some D);
+          [ rewrite -> inpo' in L;
+            rewrite <- G in L;
+            rewrite -> app_length in L;
+            rewrite -> app_length in L;
+            simpl in L;
+            assert (KK : n = ll C);
+            [ omega
+            | rewrite -> KK;
+              apply nth_error_last ]
+          | rewrite -> K;
+            f_equal;
+            assert (FF : rev (B ++ [inl D]) = rev (o' ++ [inl a]));
+            [ f_equal;
+              trivial
+            | rewrite -> rev_app_distr in FF;
+              rewrite -> rev_app_distr in FF;
+              simpl in FF;
+              inversion FF;
+              reflexivity ]]
+        | assert (K : rev (B ++ [inr (E, F)]) = rev (o' ++ [inl a]));
+          [ f_equal;
+            trivial
+          | rewrite -> rev_app_distr in K;
+            rewrite -> rev_app_distr in K;
+            inversion K]]]
+    | intros x l IHl a n mnd mxd input output brb rbr nerr o' llo inpo';
+      assert (KK : ll input = ll output);
+      [ eapply BackRefsLengthOneLength; eauto
+      | rewrite -> inpo' in rbr;
+        rewrite -> app_assoc in rbr;
+        rewrite -> app_assoc in rbr;
+        inversion rbr as [B C|B C D E F G|B C D E F G H I J];
+        [ assert (BB : rev [] = rev (((o' ++ [inl a]) ++ l) ++ [x]));
+          [ f_equal;
+            trivial
+          | rewrite -> rev_app_distr in BB;
+            inversion BB ]
+        | assert (K : n < ll C);
+          [ rewrite -> inpo' in KK;
+            rewrite -> app_length in KK;
+            rewrite -> app_length in KK;
+            rewrite -> app_length in KK;
+            rewrite <- G in KK;
+            rewrite -> app_length in KK;
+            simpl in KK;
+            omega
+          | rewrite <- nth_extend;
+            [ eapply IHl;
+              [ rewrite -> inpo' in brb;
+                rewrite -> app_assoc in brb;
+                rewrite -> app_assoc in brb;
+                apply forall_app in brb;
+                apply (proj1 brb)
+              | rewrite <- G in rbr;
+                inversion rbr as [H I|H I J L M N|H I J L M N O P Q];
+                [ destruct C; inversion I
+                | apply app_inj_tail in F;
+                  rewrite <- (proj1 F);
+                  trivial
+                | apply app_inj_tail in F; (* TODO: duplicate code *)
+                  rewrite <- (proj1 F);
+                  trivial ]
+              | assert (L : nth_error (o' ++ [inl a]) n = Some (inl a));
+                [ rewrite <- llo;
+                  apply nth_error_last
+                | rewrite <- nth_extend;
+                  [ exact L
+                  | rewrite -> app_length;
+                    simpl;
+                    omega ]]
+              | eauto
+              | symmetry;
+                apply app_assoc ]
+            | exact K ]]
+        | assert (E1 : E = 1);
+          [ apply app_inj_tail in I;
+            rewrite -> inpo' in brb;
+            rewrite <- (proj2 I) in brb;
+            repeat rewrite -> app_assoc in brb;
+            apply forall_app in brb;
+            destruct brb as [brb1 brb2];
+            inversion brb2 as [|K L M];
+            inversion M;
+            omega
+          | rewrite -> E1 in H;
+            inversion H as [|K L M N O P Q R S T U];
+            rewrite <- nth_extend;
+            [ eapply (IHl a n mnd mxd B N);
+              [ rewrite -> inpo' in brb;
+                repeat rewrite -> app_assoc in brb;
+                rewrite <- I in brb;
+                apply forall_app in brb;
+                apply brb
+              | inversion P as [V W X Y Z Ä|];
+                rewrite <- Ä;
+                trivial
+              | erewrite -> nth_extend;
+                [ rewrite -> inpo' in nerr;
+                  repeat rewrite -> app_assoc in nerr;
+                  rewrite <- I in nerr;
+                  apply nerr
+                | assert (LL : ll input = ll (B ++ [inr (E, F)]));
+                  [ f_equal;
+                    rewrite -> I;
+                    repeat rewrite <- app_assoc;
+                    trivial
+                  | rewrite -> inpo' in LL;
+                    repeat rewrite -> app_length in LL;
+                    simpl in LL;
+                    omega ]]
+              | exact llo
+              | apply app_inj_tail in I;
+                rewrite -> app_assoc;
+                apply (proj1 I) ]
+            | rewrite -> inpo' in KK;
+              rewrite <- U in KK;
+              repeat rewrite -> app_length in KK;
+              simpl in KK;
+              omega ]]]]].
+Qed.
+
+Lemma BackRefLemma3_ :
+  forall {A : Set} l d input (output : list A),
+    l > 0 -> ResolveBackReference l d input output -> d < ll output.
+Proof.
+  intros A l d input.
+  revert input l d.
+  apply (rev_ind (fun input =>
+                    forall (l d : nat) (output : list A),
+                      l > 0 -> ResolveBackReference l d input output ->
+                      d < ll output)).
+  intros l d output l0 rbr.
+  inversion rbr as [B C D E | B C D E F G H I J].
+  omega.
+  inversion H. 
+  simpl.
+  rewrite -> app_length.
+  rewrite -> app_length.
+  simpl.
+  omega.
+
+  intros x input IHinput l d output l0 rbr.
+  inversion rbr as [B C D E | B C D E F G H I J].
+  omega.
+
+  inversion H.
+  rewrite -> app_length.
+  rewrite -> app_length.
+  simpl.
+  omega.
+Qed.  
+  
+Lemma BackRefLemma3 : forall {A : Set} (n l k mnd mxd : nat)
+                            (input : SequenceWithBackRefs A) (output : list A),
+    ResolveBackReferences input output ->
+    BackRefsBounded 1 1 mnd mxd input ->
+    nth_error input n = Some (inr (l, k)) ->
+    k <= n.
+Proof.
+  intros A n l k mnd mxd input output rbr brb nerr.
+  destruct (proj1 (nth_split _ _ _) nerr) as [o' [o'' [olen oapp]]].
+
+  revert o'' o' input n l k mnd mxd olen oapp output rbr brb nerr.
+  apply (rev_ind (fun o'' => 
+                    forall (o' : list (A + nat * nat))
+                           (input : SequenceWithBackRefs A)
+                           (n l k mnd mxd : nat),
+                      ll o' = n ->
+                      input = o' ++ [inr (l, k)] ++ o'' ->
+                      forall output : list A,
+                        ResolveBackReferences input output ->
+                        BackRefsBounded 1 1 mnd mxd input ->
+                        nth_error input n = Some (inr (l, k)) -> k <= n)); [|].
+
+  intros o' input olen l k mnd mxd llo inputapp output rbr brb nerr.
+  simpl in inputapp.
+  rewrite -> inputapp in rbr.
+  inversion rbr as [B C|B C D E F G|B C D E dist F G H I].
+  destruct o'; inversion B.
+
+  apply app_inj_tail in F.
+  destruct F as [F1 F2]. inversion F2.
+
+  apply app_inj_tail in H.
+  destruct H as [Q R].
+  inversion R as [[X Y]].
+  rewrite -> X in G.
+  rewrite -> Y in G.
+  apply BackRefLemma3_ in G.
+  assert (ÿ : ll input = ll output).
+  eapply BackRefsLengthOneLength.
+  exact brb.
+  rewrite <- inputapp in rbr.
+  exact rbr.
+
+  rewrite -> inputapp in ÿ.
+  rewrite -> app_length in ÿ.
+  simpl in ÿ.
+  omega.
+  rewrite -> inputapp in brb.
+  apply forall_app in brb.
+  destruct brb as [brb1 brb2].
+  inversion brb2.
+  match goal with
+  | K : BackRefBounded 1 1 mnd mxd _ |- _ => inversion K
+  end.
+  omega.
+
+  intros x input IHinput.
+  intros o' input0 n l k mnd mxd llo in0app output rbr brb nerr.
+
+  rewrite -> in0app in rbr.
+  inversion rbr as [K L|K L M N O P|K L M N O P Q R S].
+  destruct o'; inversion K.
+  rewrite -> app_comm_cons in O.
+  rewrite -> app_assoc in O.
+  apply app_inj_tail in O.
+  destruct O as [O1 O2].
+  rewrite -> O1 in N.
+
+  eapply IHinput.
+  exact llo.
+  exact O1.
+  rewrite -> O1.
+  exact N.
+
+  rewrite -> in0app in brb.
+  rewrite -> app_assoc in brb.
+  rewrite -> app_assoc in brb.
+  apply forall_app in brb.
+  destruct brb as [brb1 brb2].
+  rewrite <- app_assoc in brb1.
+  simpl in brb1.
+  rewrite <- O1 in brb1.
+  apply brb1.
+  replace (o' ++ [inr (l, k)] ++ input ++ [x])
+  with ((o' ++ [inr (l, k)] ++ input) ++ [x])
+    in in0app.
+  simpl in in0app.
+  rewrite <- O1 in in0app.
+  erewrite -> nth_extend.
+  rewrite -> in0app in nerr.
+  eauto.
+  rewrite -> O1.
+  rewrite -> app_length.
+  simpl.
+  omega.
+  repeat rewrite -> app_assoc.
+  reflexivity.
+
+  
+  eapply IHinput.
+  exact llo.
+  rewrite -> app_comm_cons in R.
+  rewrite -> app_assoc in R.
+  apply app_inj_tail in R.
+  destruct R as [R1 R2].
+  exact R1.
+  eauto.
+  rewrite -> in0app in brb.
+  repeat rewrite -> app_assoc in brb.
+  rewrite -> app_comm_cons in R.
+  replace (inr (l, k) :: input)
+  with ([inr (l, k)] ++ input) in R; [|reflexivity].
+  rewrite <- app_assoc in R.
+  repeat rewrite -> app_assoc in R.
+  rewrite <- R in brb.
+  apply forall_app in brb.
+  destruct brb as [brb1 brb2].
+  exact brb1.
+
+  erewrite -> nth_extend.
+  rewrite -> in0app in nerr.
+  rewrite -> app_comm_cons in R.
+  replace (inr (l, k) :: input)
+  with ([inr (l, k)] ++ input) in R; [|reflexivity].
+  repeat rewrite <- app_assoc in R.  
+  rewrite <- R in nerr.
+  eauto.
+
+  rewrite -> app_comm_cons in R.
+  rewrite -> app_assoc in R.
+  apply app_inj_tail in R.
+  destruct R as [R1 R2].  
+  rewrite -> R1.
+  rewrite -> app_length.
+  simpl.
+  omega.
+Qed.  
+
+Lemma BackRefsBoundedLemma :
+  forall {A : Set} (n l d mnd mxd : nat)
+         (input : SequenceWithBackRefs A),
+    BackRefsBounded 1 1 mnd mxd input ->
+    nth_error input n = Some (inr (l, d)) ->
+    l = 1.
+Proof.
+  intros A n l d mnd mxd input.
+  revert input n l d mnd mxd.
+  induction input as [|a input IHinput].
+  intros n l d mnd mxd B C.
+  destruct n; inversion C.
+
+  intros n l d mnd mxd brb nerr.
+  destruct n.
+  destruct a.
+  inversion nerr.
+  destruct p. (* TODO *)
+  inversion nerr.
+  inversion brb.
+  inversion H3. (* TODO *)
+  omega.
+
+  simpl in nerr.
+  eapply IHinput.
+  inversion brb.
+  eauto.
+  eauto.
+Qed.
+
+Lemma BackRefsBoundedLemma2 :
+  forall {A : Set} (n l d mnd mxd : nat)
+         (input : SequenceWithBackRefs A),
+    BackRefsBounded 1 1 mnd mxd input ->
+    nth_error input n = Some (inr (l, d)) ->
+    mnd <= d <= mxd.
+Proof.
+  intros A n l d mnd mxd input.
+  revert input n l d mnd mxd.
+  induction input as [|a input IHinput].
+  intros n l d mnd mxd B C.
+  destruct n; inversion C.
+
+  intros n l d mnd mxd brb nerr.
+  destruct n.
+  destruct a.
+  inversion nerr.
+  destruct p. (* TODO *)
+  inversion nerr.
+  inversion brb.
+  inversion H3. (* TODO *)
+  omega.
+
+  simpl in nerr.
+  eapply IHinput.
+  inversion brb.
+  eauto.
+  eauto.
+Qed.
+
+Definition F {A : Set} (a : ListArray (A + (nat * nat))%type) (n : nat) :=
+  { m : option A |
+    forall (mnd mxd : nat) (k : SequenceWithBackRefs A) (l : list A),
+      a = l2a k ->
+      BackRefsBounded 1 1 (S mnd) mxd k ->
+      ResolveBackReferences k l ->
+      m = nth_error l n }.
+
+(* TODO: Woanders *)
+Lemma nth_error_none :
+  forall {A : Set} (l : list A) n,
+    nth_error l n = None <-> n >= ll l.
+Proof.
+  intros A.
+  induction l.
+  intros n.
+  split.
+
+  intros nnone.
+  simpl.
+  omega.
+
+  intros ?.
+  destruct n; reflexivity.
+  
+  intros n.
+  split.
+  intros nnone.
+  destruct n.
+  inversion nnone.
+  simpl.
+  assert (n >= ll l).
+  apply IHl.
+  simpl in nnone.
+  auto.
+  omega.
+
+  intros nll.
+  destruct n.
+  inversion nll.
+  simpl.
+  apply IHl.
+  simpl in nll.
+  omega.  
+Qed.  
+
+Lemma F_rec : forall {A : Set} (a : ListArray (A + (nat * nat))%type),
+    (forall (n:nat), (forall (m:nat), m<n -> F a m )->F a n).
+Proof.
+  unfold F.
+  intros A a n rec.
+  destruct (anth_error a n) as [[byte | [l d]] | no] eqn:anerr.
+  + exists (Some byte).
+    intros mnd mxd k l B C D.
+    symmetry.
+    eapply BackRefLemma2.
+    eauto.
+    eauto.
+    rewrite -> B in anerr.
+    rewrite -> anth_nth in anerr.
+    auto.
+  + destruct (le_dec d n).
+    - destruct (le_dec 1 d).
+      destruct (rec (n - d)) as [x e].
+      omega.
+      exists x.
+      intros mnd mxd k l2 B C D.
+      erewrite -> BackRefLemma.
+      eapply e.
+      eauto.
+      eauto.
+      trivial.
+      eauto.
+      trivial.
+      rewrite -> B in anerr.
+      rewrite -> anth_nth in anerr.
+      assert (K : l = 1).
+      eapply BackRefsBoundedLemma.
+      exact C.
+      exact anerr.
+      rewrite <- K.
+      trivial.
+      assert (K : d = 0).
+      omega.
+      exists (@None A).
+      intros mnd mxd k l1 al brb rbr.
+      rewrite -> al in anerr.
+      rewrite -> anth_nth in anerr.
+      eapply (BackRefsBoundedLemma2 _ _ _ (S mnd) mxd) in anerr.
+      omega.
+      exact brb.
+    - exists (@None A).
+      intros mnd mxd k l0 al brb rbr.
+      rewrite -> al in anerr.
+      rewrite -> anth_nth in anerr.
+      eapply (BackRefLemma3 _ _ _ _ _ _ _ rbr) in anerr.
+      omega.
+      eauto.
+  + exists (@None A).
+    intros mnd mxd k l al brb rbr.
+    assert (K : ll k = ll l).
+    eapply BackRefsLengthOneLength.
+    exact brb.
+    exact rbr.
+    rewrite -> al in anerr.
+    rewrite anth_nth in anerr.
+    apply nth_error_none in anerr.
+    rewrite -> K in anerr.
+    symmetry.
+    apply nth_error_none.
+    exact anerr.
+Qed.
+  
+Fixpoint correctSWBR1 {A : Set}
+         (n : nat) (swbr : SequenceWithBackRefs A) : bool :=
+  match swbr with
+  | [] => true
+  | inl d :: r => correctSWBR1 (S n) r
+  | inr (_, d) :: r => match le_dec d n with
+                       | left _  => correctSWBR1 (S n) r
+                       | right _ => false
+                       end
+  end.
+
+Lemma correctSWBRapp : forall {A : Set}
+                              (swbr1 swbr2 : SequenceWithBackRefs A)
+                              n,
+    correctSWBR1 n (swbr1 ++ swbr2) =
+    andb (correctSWBR1 n swbr1) (correctSWBR1 (n + ll swbr1) swbr2).
+Proof.
+  intros A.
+  induction swbr1 as [|a swbr1 IHswbr1].
+  intros swbr2 n.
+  simpl.
+  replace (n + 0) with n; [|omega].
+  reflexivity.
+
+  intros swbr2 n.
+  rewrite <- app_comm_cons.
+  simpl.
+  rewrite -> IHswbr1.
+  simpl.
+
+  destruct a.
+  replace (S (n + ll swbr1)) with (n + S (ll swbr1)); [|omega].
+  reflexivity.
+  
+  destruct p.
+  destruct (le_dec n1 n).
+  
+  replace (S (n + ll swbr1)) with (n + (S (ll swbr1))); [|omega].
+  reflexivity.
+
+  reflexivity.
+Qed.  
+
+(* TODO: Woanders *)
+
+Lemma nonnull_lemma : forall {A : Set} (x : A) L dist,
+    nth_error (x :: L) (ll (x :: L) - S dist) <> None.
+Proof.
+  intros A x L dist Q.
+  apply nth_error_none in Q.
+  simpl in Q.
+  omega.
+Qed.
+  
+Lemma correctSWBR1dst :
+  forall {A : Set} len dist n,
+    correctSWBR1 n [@inr A _ (len, dist)] = true -> dist <= n.
+Proof.
+  intros A len dist n corr.
+  simpl in corr.
+  destruct (le_dec dist n).
+  trivial.
+  firstorder.
+Qed.
+  
+Lemma swbr_correct_exists : forall {A : Set}
+                                   (null : A)
+                                   (swbr : SequenceWithBackRefs A)
+                                   mnd mxd,
+    BackRefsBounded 1 1 (S mnd) mxd swbr ->
+    correctSWBR1 0 swbr = true -> exists l, ResolveBackReferences swbr l.
+Proof.
+  intros A null.
+  apply (rev_ind (fun swbr => forall (mnd mxd : nat),
+                      BackRefsBounded 1 1 (S mnd) mxd swbr ->
+                      correctSWBR1 0 swbr = true ->
+                      exists l : list A, ResolveBackReferences swbr l)).
+  exists (@nil A).
+  constructor.
+
+  intros x l IHl mnd mxd.
+  rewrite -> correctSWBRapp.
+  intros brb ndp.
+  apply Bool.andb_true_iff in ndp.
+  destruct ndp as [nd1 nd2].
+  eapply IHl in nd1.
+  destruct nd1 as [L LL].
+  destruct x as [byte | [len dist]].
+
+  exists (L ++ [byte]).
+  constructor.
+  exact LL.
+
+  assert (KM : len = 1 /\ dist >= 1).
+  apply forall_app in brb.
+  destruct brb as [brb1 brb2].
+  inversion brb2.
+  match goal with
+  | H : BackRefBounded 1 1 _ _ _ |- _ => inversion H
+  end.
+  omega.
+  destruct KM as [K M].
+  
+  destruct (nth_error L (ll L - dist)) as [isthere | isnthere] eqn:isq.
+  
+  exists (L ++ [isthere]).
+  econstructor.
+  exact LL.
+  rewrite -> K.
+  constructor.
+  constructor.
+
+  destruct dist.
+  omega.  
+  apply (nthNthLast _ _ null).
+  eapply correctSWBR1dst.
+  replace (ll L) with (ll l).
+  exact nd2.
+  apply forall_app in brb.
+  destruct brb as [brb1 brb2].
+  eapply BackRefsLengthOneLength.
+  exact brb1.
+  exact LL.
+
+  apply nth_error_nth.
+  exact isq.
+
+  destruct dist.
+  omega.
+  destruct L.
+  inversion LL as [Q|B C D E F G|B C D E F G H I J].
+  rewrite <- Q in nd2.
+  inversion nd2.
+
+  destruct C; inversion G.
+  
+  assert (Quark : ll l = ll (@nil A)).
+  eapply BackRefsLengthOneLength.
+  apply forall_app in brb.
+  destruct brb as [brb1 brb2].
+  exact brb1.
+  trivial.
+  destruct l.
+  destruct B; inversion I.
+  inversion Quark.
+  
+  contradict isq.
+  apply nonnull_lemma.
+
+  apply forall_app in brb.
+  destruct brb as [brb1 brb2].  
+  exact brb1.
+Qed.  
+
+Fixpoint funToListRev {A : Set} (n : nat) (f : nat -> A) : list A :=
+  match n with
+  | 0    => []
+  | S n_ => f n_ :: funToListRev n_ f
+  end.
+  
+Lemma funToListRev_length :
+  forall {A : Set} (f : nat -> A) n, ll (funToListRev n f) = n.
+Proof.
+  intros A f.
+  induction n as [|n IHn].
+  reflexivity.
+  simpl.
+  omega.
+Qed.
+  
+Function funToList {A : Set} (n : nat) (f : nat -> A) : list A :=
+  rev (funToListRev n f).  
+
+Lemma funToList_length : 
+  forall {A : Set} (f : nat -> A) n, ll (funToList n f) = n.
+Proof.
+  intros A f n.
+  unfold funToList.
+  rewrite -> rev_length.
+  apply funToListRev_length.
+Qed.
+
+Lemma funToListRev_correct :
+  forall {A : Set} n m (f : nat -> A),
+    m < n -> nth_error (funToListRev n f) (n - m - 1) = Some (f m).
+Proof.
+  intros A.
+  induction n as [|n IHn].
+  + intros.
+    omega.
+  + destruct n as [|n].
+    - intros m f m1.
+      destruct m as [|m].
+      reflexivity.
+      omega.
+    - intros m f mn.
+      destruct m as [|m].
+      * rewrite <- IHn.
+        simpl.        
+        replace (n - 0) with n; [|omega].
+        reflexivity.
+        omega.
+      * destruct (le_dec n m).
+        replace (S (S n) - S m - 1) with 0; [|omega].
+        simpl.
+        destruct (eq_nat_dec n m) as [e | ne].
+        rewrite -> e.
+        reflexivity.
+        omega.
+        
+        rewrite <- IHn.
+        replace (S (S n) - S m - 1) with (S (n - m - 1)); [|omega].
+        reflexivity.
+        omega.
+Qed.
+
+(* TODO: Woanders *)
+Lemma rev_nth_error :
+  forall (A : Set) (l : list A) (n : nat),
+    n < ll l -> nth_error (rev l) n = nth_error l (ll l - S n).
+Proof.
+  intro A.
+  induction l as [|x l IHl].
+  intros n nll.
+  simpl in nll.
+  omega.
+
+  intros n nll.
+  simpl.
+  destruct (eq_nat_dec n (ll l)) as [e | ne].  
+  replace (ll l - n) with 0; [|omega].
+  simpl.
+  rewrite -> e.
+  rewrite <- rev_length.
+  rewrite -> nth_error_last.
+  reflexivity.
+
+  simpl in nll.
+  replace (ll l - n) with (S (ll l - S n)); [|omega].
+  simpl.
+  rewrite <- nth_extend.
+  apply IHl.
+  omega.
+  rewrite -> rev_length.
+  omega.
+Qed.
+
+(* TODO: woanders *)
+
+Lemma exists_fn :
+  forall {B} (A : nat -> B -> Prop) (f : forall n, {m : B | A n m})
+         n, A n (proj1_sig (f n)).
+Proof.
+  intros.
+  apply proj2_sig.
+Qed.
+
+Lemma F_rec_correct :
+  forall {A : Set} (C : SequenceWithBackRefs A) (D : list A) mnd mxd n (lln : n < ll C),
+    BackRefsBounded 1 1 (S mnd) mxd C ->
+    ResolveBackReferences C D ->
+    proj1_sig (COV _ (F_rec (l2a C)) n) =
+    nth_error D n.
+Proof.  
+  intros A C D mnd mxd n lln brb rbr.
+  set (a := l2a C).
+  eapply proj2_sig.
+  
+  destruct (COV (F (l2a C)) (F_rec (l2a C)) n) as [x e] eqn:q.
+  unfold a.
+  exists x.
+  rewrite -> q.
+  eapply e.
+  reflexivity.
+  exact brb.  
+  exact rbr.
+Qed.
+  
+Lemma funToList_correct :
+  forall {A : Set} n m (f : nat -> A),
+    m < n -> nth_error (funToList n f) m = Some (f m).
+Proof.
+  unfold funToList.
+  intros A n m f mn.
+  rewrite -> rev_nth_error.
+  rewrite -> funToListRev_length.
+  replace (n - S m) with (n - m - 1); [|omega].
+  apply funToListRev_correct.
+  trivial.
+  rewrite -> funToListRev_length.
+  trivial.
+Qed.
+
+Theorem ResolveBackReferencesDec'
+  : forall {A : Set} (null : A) (input : SequenceWithBackRefs A) mnd mxd,
+    BackRefsBounded 1 1 (S mnd) mxd input -> 
+    {output | ResolveBackReferences input output} +
+    ({output | ResolveBackReferences input output} -> False).
+Proof.
+  intros A null input mnd mxd brb.
+  destruct (correctSWBR1 0 input) as [corr |] eqn:coreq.
+  assert (K : exists l, ResolveBackReferences input l);
+    [ eapply (swbr_correct_exists null); eauto | eauto ].
+  apply inl.  
+  set (D := l2a input).
+  set (len := ll input).
+  set (E := COV (F D) (F_rec D)).
+  set (F := fun n => proj1_sig (E n)).
+  set (G := funToList len F).
+  set (H := map (fun x => match x with
+                          | None => null
+                          | Some a => a
+                          end) G).
+  exists H.
+  destruct K as [xK kK].
+  set (I := F_rec_correct input H).
+
+(************************************************************)
+  
+Function doResolution {A : Set} (B : SequenceWithBackRefs A)
+  : option (forall n, F (l2a (BackRefsLengthOne_ B)) n) :=
+  let C := BackRefsLengthOne_ B in
+  let LC := ll C in
+  let D := l2a C in
+  let E := COV (F D) (F_rec D) in
+  match correctSWBR1 0 C with
+  | false => None
+  | true => Some E
+  end.

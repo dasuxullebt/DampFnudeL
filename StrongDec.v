@@ -78,12 +78,19 @@ Proof.
   trivial.
 Qed.
 
-Inductive Combine {A BQ BR BS} (Q : BQ -> list A -> Prop) (R : BQ -> BR -> list A -> Prop) (c : BQ -> BR -> BS) : BS -> list A -> Prop :=
-| doCombine : forall bq br aq ar, Q bq aq -> R bq br ar -> Combine Q R c (c bq br) (aq ++ ar).
+(* COMBINE1 *)
+Inductive Combine {A BQ BR BS}
+ (Q : BQ -> list A -> Prop)
+ (R : BQ -> BR -> list A -> Prop)
+ (c : BQ -> BR -> BS) : BS -> list A -> Prop :=
+| doCombine : forall bq br aq ar,
+   Q bq aq -> R bq br ar ->
+     Combine Q R c (c bq br) (aq ++ ar).
 
 Notation "A >>[ B ]= C" := (Combine A C B) (at level 0).
 Notation "A >>= B" := (Combine A B pi2) (at level 0).
-
+(* COMBINE2 *)
+	   
 Theorem CombineStrongDecStrongUnique : forall {A BQ BR BS}
                                             (Q : BQ -> list A -> Prop) (R : BQ -> BR -> list A -> Prop) (c : BQ -> BR -> BS),
                                        StrongUnique Q -> StrongDec Q ->
@@ -214,11 +221,17 @@ Proof.
   auto.
 Qed.
 
-Fixpoint nTimes {A B C} (n : nat) (null : C) (comb : A -> C -> C) (rel : A -> list B -> Prop) : C -> list B -> Prop :=
+(* NTIMES1 *)
+Fixpoint nTimes {A B C} (n : nat) (null : C)
+                        (comb : A -> C -> C)
+                        (rel : A -> list B -> Prop)
+: C -> list B -> Prop :=
   match n with
     | 0 => fun c L => c = null /\ L = nil
-    | (S n') => rel >>[ comb ]= fun _ => (nTimes n' null comb rel)
+    | (S n') => rel >>[ comb ]= fun _ =>
+                (nTimes n' null comb rel)
   end.
+(* NTIMES2 *)
 
 Theorem nTimesStrongDecStrongUnique : forall {A B C} (err : string) (null : C) (comb : A -> C -> C) (R : A -> list B -> Prop),
                                StrongUnique R -> StrongDec R -> forall n,
@@ -249,12 +262,15 @@ Proof.
   apply IHn.
 Defined.
 
-
-Definition nTimesApp {A B} (n : nat) (rel : list A -> list B -> Prop) :=
+(* NTIMESSPEC1 *)
+Definition nTimesApp {A B} (n : nat)
+  (rel : list A -> list B -> Prop) :=
   nTimes n nil (@app A) rel.
-
-Definition nTimesCons {A B} (n : nat) (rel : A -> list B -> Prop) :=
+				     
+Definition nTimesCons {A B} (n : nat)
+  (rel : A -> list B -> Prop) :=
   nTimes n nil (@cons A) rel.
+(* NTIMESSPEC2 *)
 
 Lemma AndStrongUnique : forall A B Q (rel : A -> list B -> Prop),
                           StrongUnique rel ->
@@ -301,3 +317,23 @@ Proof.
   destruct R as [? [? [? [? [q ?]]]]].
   exact q.
 Defined.
+
+Definition AppCombine {A BQ BR : Set }
+  (Q : BQ -> list A -> Prop)
+  (f : BQ -> BR) : BR -> list A -> Prop :=
+  Combine Q (fun n (m : unit) L => m = () /\ L = @nil A)
+            (fun a b => f a).
+
+Lemma AppCombineF : forall
+                      {A BQ BR : Set}
+                      (a : BQ) (b : list A) (R : BQ -> list A -> Prop)
+                      (f : BQ -> BR), R a b -> AppCombine R f (f a) b.
+Proof.
+  intros A BQ BR a b R f rab.
+  unfold AppCombine.
+  replace b with (b ++ []).
+  apply (doCombine R (fun (_ : BQ) (m : ()) (L : list A) => m = () /\ L = []) (fun a b => f a) _ ()).
+  apply rab.
+  auto.
+  apply app_nil_r.
+Qed.

@@ -314,7 +314,7 @@ Proof.
   reflexivity.
 Qed.
 
-Inductive dflist : list LB -> Set := 
+Inductive dflist {A : Set} : list A -> Set := 
   | dflist_nil : dflist nil
   | dflist_cons :
       forall a b, dflist b -> (~ (In a b)) -> dflist (a :: b).
@@ -1951,4 +1951,123 @@ Proof.
   rewrite <- app_comm_cons in app.
   inversion app.
   auto.
+Qed.
+
+Lemma nth_error_nil : forall {A} n, nth_error (@nil A) n = error.
+Proof.
+  destruct n; reflexivity.
+Qed.
+
+Lemma nth_extend : forall {A} (b c : list A) n, n < ll b -> nth_error b n = nth_error (b ++ c) n.
+Proof.
+  induction b.
+  simpl; intros; omega.
+  intros c n nl.
+  rewrite <- app_comm_cons.
+  destruct n.
+  reflexivity.
+  simpl.
+  apply IHb.
+  simpl in nl.
+  omega.
+Qed.
+
+Lemma nth_split : forall {A} l n (k : A),
+                    nth_error l n = Some k <-> exists l' l'', ll l' = n /\ l = l' ++ [k] ++ l''.
+Proof.
+  intros A l n k;
+  split;
+  [ revert l n;
+    refine (fix f l n (isk : nth_error l n = Some k) {struct l} :=
+              match l as L return (l=L->_) with
+                | [] => fun eqL => _
+                | (x :: xs) => fun eqL => match n as N return (n=N->_) with
+                                            | 0 => fun eqN => _
+                                            | S n' => fun eqN => _
+                                          end eq_refl
+              end eq_refl);
+    [ rewrite -> eqL in isk; destruct n; inversion isk
+    | exists (@nil A);
+      exists xs;
+      split;
+      [ reflexivity
+      | simpl;
+        rewrite -> eqL in isk;
+        rewrite -> eqN in isk;
+        inversion isk;
+        reflexivity ]
+    | rewrite -> eqL in isk;
+      rewrite -> eqN in isk;
+      simpl in isk;
+      destruct (f _ _ isk) as [l_ [l__ [lll_ xxx_]]];
+      exists (x :: l_);
+      exists l__;
+      split;
+      [ simpl; omega
+      | rewrite -> xxx_;
+        reflexivity]]
+  | revert l n;
+    refine (fix f l n (x : (exists l' l'' : list A, ll l' = n /\ l = l' ++ [k] ++ l'')) {struct l} :=
+              match l as L return (l=L->_) with
+                | [] => fun eqL => _
+                | (x :: xs) => fun eqL => match n as N return (n=N->_) with
+                                            | 0 => fun eqN => _
+                                            | S n' => fun eqN => _
+                                          end eq_refl
+              end eq_refl);
+    [ destruct x as [l' [l'' [lll' lapp]]];
+      rewrite -> eqL in lapp;
+      destruct l'; inversion lapp
+    | destruct x as [l' [l'' [lll' lapp]]];
+      rewrite -> eqL in lapp;
+      rewrite -> lapp;
+      destruct l';
+      [ reflexivity
+      | rewrite -> eqN in lll';
+        inversion lll' ]
+    | destruct x as [l' [l'' [lll' lapp]]];
+      destruct l' as [|a l'];
+      [ rewrite -> eqN in lll';
+        inversion lll'
+      | simpl;
+        apply f;
+        exists l' l'';
+        split;
+        [ simpl in lll'; omega
+        | rewrite -> eqL in lapp;
+          inversion lapp;
+          trivial ]]]].
+Qed.
+
+Lemma nth_error_lt : forall {A} l n (k : A), nth_error l n = Some k -> n < ll l.
+Proof.
+  induction l as [|x l IHl].
+  destruct n; intros ? Q; inversion Q.
+  destruct n.
+  intros; simpl; omega.
+  intros k nerr.
+  simpl in nerr.
+  simpl.
+  assert (n < ll l).
+  eapply IHl.
+  eauto.
+  omega.
+Qed.
+
+Lemma nth_error_nth : forall {A} n l (q k : A), nth_error l n = Some k -> nth n l q = k.
+Proof.
+  intros A n l q k.
+  revert n l.
+  refine (fix f n l {struct n} :=
+            match l as L return (l=L->_) with
+              | [] => fun eqL => _
+              | (x :: l') => fun eqL =>
+                               match n as N return (n=N->_) with
+                                 | 0 => fun eqN => _
+                                 | S n' => fun eqN => _
+                               end eq_refl
+            end eq_refl).
+  intro nerr; destruct n; inversion nerr.
+  intro Q; inversion Q; reflexivity.
+  simpl; apply f.
 Qed.

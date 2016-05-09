@@ -1,13 +1,10 @@
 Deflate
 =======
 
-This should become an implementation of Deflate in Coq. It is not
-finished yet.
+This is an implementation of Deflate in Coq.
 
-The specification is complete, but the implementation is not efficient
-yet.
-
-It *should* compile under the recent Coq versions.
+What is still missing in this repo are the files for compilation into
+actual programs.
 
 For further information, see
 [my website](http://www2.tcs.ifi.lmu.de/~senjak/).

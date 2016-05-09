@@ -510,3 +510,27 @@ rewrite <- H1 in b0.
 contradict b0.
 reflexivity.
 Qed.
+
+Lemma repeat_forall : forall {A} n (Q : A -> Prop) a,
+                        Q a -> Forall Q (repeat n a).
+Proof.
+  intros A.
+  induction n.
+  constructor.
+  intros Q a Qa.
+  constructor.
+  exact Qa.
+  apply IHn.
+  exact Qa.
+Qed.
+
+Lemma repeat_map : forall {A B : Set} (c : A) (f : A -> B) n,
+                     map f (repeat n c) = repeat n (f c).
+Proof.
+  intros A B c f.
+  induction n as [|n IHn].
+  reflexivity.
+  simpl.
+  rewrite -> IHn.
+  reflexivity.
+Qed.

@@ -6,19 +6,19 @@ Require Import Bool.
 Require Import Coq.Arith.Compare_dec.
 Require Import Coq.Numbers.Natural.Peano.NPeano.
 Require Import Program.
-Require Import Intervals.
-Require Import Prefix.
-
 Require Export FMapAVL.
 Require Export Coq.Structures.OrderedTypeEx.
-Require Import HashTable.
 
+Require Import HashTable.
+Require Import Intervals.
+Require Import Prefix.
 Require Import Shorthand.
 Require Import Backreferences.
 Require Import EncodingRelation.
 Require Import LSB.
 Require Import Combi.
 Require Import DeflateCoding.
+Require Import EncodingRelationProperties.
 
 (** For finding Backreferences, we use a slightly modified version of
 the algorithm specified in RFC 1951. *)
@@ -1188,33 +1188,6 @@ Require Import BinNat.
 
 Local Open Scope Z_scope.
 
-(* TODO: This would not be necessary if we changed the definition of
-strToNat in Shorthand.v, and we should do so and merge this into the
-dissertation text *)
-
-Fixpoint strToNat_' (str : string) (n : nat) : option nat :=
-  match str with
-    | EmptyString => Some n
-    | String "0" str => strToNat_' str ((10 * n) + 0)
-    | String "1" str => strToNat_' str ((10 * n) + 1)
-    | String "2" str => strToNat_' str ((10 * n) + 2)
-    | String "3" str => strToNat_' str ((10 * n) + 3)
-    | String "4" str => strToNat_' str ((10 * n) + 4)
-    | String "5" str => strToNat_' str ((10 * n) + 5)
-    | String "6" str => strToNat_' str ((10 * n) + 6)
-    | String "7" str => strToNat_' str ((10 * n) + 7)
-    | String "8" str => strToNat_' str ((10 * n) + 8)
-    | String "9" str => strToNat_' str ((10 * n) + 9)
-    | _ => None
-  end.
-
-Function strToNat' (str : string) := strToNat_' str 0.
-
-Lemma strToNat__ : forall str, strToNat' str = strToNat str.
-Proof.
-  induction str; [reflexivity | compute; reflexivity].
-Qed.
-
 (*Require Import Coq.Numbers.Cyclic.Int31.Int31.
 Require Import Coq.Numbers.Cyclic.Int31.Cyclic31.
 
@@ -1243,27 +1216,6 @@ Definition D (s : string) :=
 Require Import BinInt.
 
 Open Scope Z_scope.
-
-Fixpoint strToZ_ (str : string) (n : Z) : option Z :=
-   match str with
-     | EmptyString => Some n
-     | String "0" str => strToZ_ str ((10 * n) + 0)
-     | String "1" str => strToZ_ str ((10 * n) + 1)
-     | String "2" str => strToZ_ str ((10 * n) + 2)
-     | String "3" str => strToZ_ str ((10 * n) + 3)
-     | String "4" str => strToZ_ str ((10 * n) + 4)
-     | String "5" str => strToZ_ str ((10 * n) + 5)
-     | String "6" str => strToZ_ str ((10 * n) + 6)
-     | String "7" str => strToZ_ str ((10 * n) + 7)
-     | String "8" str => strToZ_ str ((10 * n) + 8)
-     | String "9" str => strToZ_ str ((10 * n) + 9)
-     | _ => None
-   end.
-
-Function strToZ (strn : string) : option Z := strToZ_ strn 0.
-
-Definition D (s : string) :=
-  forceOption Z parseError (strToZ s) ParseError.
 
 Require Import Coq.Strings.Ascii.
 
@@ -1359,49 +1311,6 @@ Qed.*)
       end
   end. *)
 
-Definition distCodeBase' :=
-  [ D"1"     ; D"2"     ; D"3"     ; D"4"     ;
-    D"5"     ; D"7"     ; D"9"     ; D"13"    ;
-    D"17"    ; D"25"    ; D"33"    ; D"49"    ;
-    D"65"    ; D"97"    ; D"129"   ; D"193"   ;
-    D"257"   ; D"385"   ; D"513"   ; D"769"   ;
-    D"1025"  ; D"1537"  ; D"2049"  ; D"3073"  ;
-    D"4097"  ; D"6145"  ; D"8193"  ; D"12289" ;
-    D"16385" ; D"24577" ].
-
-Definition distCodeMax' :=
-  [ D"1"     ; D"2"     ; D"3"     ; D"4"     ;
-    D"6"     ; D"8"     ; D"12"    ; D"16"    ;
-    D"24"    ; D"32"    ; D"48"    ; D"64"    ;
-    D"96"    ; D"128"   ; D"192"   ; D"256"   ;
-    D"384"   ; D"512"   ; D"768"   ; D"1024"  ;
-    D"1536"  ; D"2048"  ; D"3072"  ; D"4096"  ;
-    D"6144"  ; D"8192"  ; D"12288" ; D"16384" ;
-    D"24576" ; D"32768" ].
-
-Lemma distCodeBase'correct : map Z.of_nat distCodeBase = distCodeBase'.
-Proof.
-  unfold distCodeBase.
-  unfold map.
-  unfold d.
-  unfold forceOption.
-  unfold strToNat.
-
-  repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul).
-  reflexivity.
-Qed.
-
-Lemma distCodeMax'correct : map Z.of_nat distCodeMax = distCodeMax'.
-Proof.
-  unfold distCodeMax.
-  unfold map.
-  unfold d.
-  unfold forceOption.
-  unfold strToNat.
-
-  repeat (rewrite -> Znat.Nat2Z.inj_add || rewrite -> Znat.Nat2Z.inj_mul).
-  reflexivity.
-Qed.
 
 Lemma distClosed : Closed 1 32768 distCodeBase' distCodeMax'.
 Proof.
@@ -1677,9 +1586,10 @@ Proof.
   exact rb.
 Qed.
 
+Definition compressX := fun l => ` (compress l).
+
 Extraction Language Haskell.
 
-Definition compressX := fun l => ` (compress l).
 
 (** Strings *)
 
@@ -1707,15 +1617,13 @@ Extract Inductive sumor => "Data.Maybe.Maybe" [ "Data.Maybe.Just" "Data.Maybe.No
 Extract Inductive comparison => "Extraction.Cmp" ["Extraction.Eq" "Extraction.Lt" "Extraction.Gt"]
                                                  "Extraction.cmprec".
 
-(** Constants for nat *)
-
-Extract Inductive nat => "Prelude.Int" [ "0" "Extraction.natinc" ]
-                                       "Extraction.natrec".
-(*                               "( let r z s n = case n of {0 -> z 0 ; q -> s (q Prelude.- 1)} in r )".*)
-
 
 (** Fin is just nat with an index that is not relevant *)
 Extract Inductive fin => "Extraction.Fin" [ "Extraction.fin1" "Extraction.fins" ] "Extraction.finrec".
+
+(** Constants for nat *)
+
+Extract Inductive nat => "Prelude.Int" ["0" "Extraction.natinc"] "Extraction.natrec".
 
 Extract Constant lt_eq_lt_dec => "Extraction.lt_eq_lt_dec".
 
@@ -1729,11 +1637,73 @@ Extract Constant mult => "(Prelude.*)".
 
 Extract Constant minus => "Extraction.natminus".
 
-(*Extract Constant eq_nat_dec => "(Prelude.==)".*)
-
 Extract Constant pow => "(Prelude.^)".
 
 Extract Inductive list => "[]" [ "[]" "(\ a b -> a : b)" ]
                                "(\ n c l -> case l of { [] -> n [] ; (b : bs) -> c b bs })".
 
-Extraction "CompressX.hs" compressX.
+Extract Inductive vec => "Extraction.Vec" ["Extraction.vecNil" "Extraction.vecCons"] "Extraction.vecRec".
+
+
+Extraction "Compress/Compress.hs" compressX.
+
+(* Extraction Language Ocaml. *)
+
+(* Set Extraction Optimize. *)
+(* Set Extraction AutoInline. *)
+
+(* Extract Inductive ascii => "char" ["Extraction.makechar"] "Extraction.charrec". *)
+
+(* Extract Inductive string => "Extraction.coq_string" ["[]" "(::)"] "Extraction.stringrec". *)
+
+(* Extract Inductive prod => "(*)" ["(,)"]. *)
+
+(* Extract Inductive option => "option" [ "Some" "None" ]. *)
+
+(* Extract Inductive sum => "Extraction.either" ["Extraction.Left" "Extraction.Right"]. *)
+
+(* Extract Inductive bool => "bool" ["true" "false"]. *)
+
+(* Extract Inductive sumbool => "bool" ["true" "false"]. *)
+
+(* Extract Inductive sumor => "option" [ "Some" "None" ]. *)
+
+(* Extract Inductive comparison => "Extraction.cmp" *)
+(*                                   ["Extraction.Eq" *)
+(*                                      "Extraction.Lt" *)
+(*                                      "Extraction.Gt"] *)
+(*                                   "Extraction.cmprec". *)
+
+(* (** Constants for nat *) *)
+
+(* Extract Inductive nat => "Big_int.big_int" *)
+(*                            [ "Big_int.zero_big_int" "Big_int.succ_big_int" ] *)
+(*                            "Extraction.natrec". *)
+
+(* Extract Inlined Constant lt_eq_lt_dec => "Extraction.lt_eq_lt_dec". *)
+
+(* Extract Inlined Constant le_lt_dec => "Big_int.le_big_int". *)
+
+(* Extract Inlined Constant nat_compare => "Extraction.nat_compare". *)
+
+(* Extract Inlined Constant plus => "Big_int.add_big_int". *)
+
+(* Extract Inlined Constant mult => "Big_int.mult_big_int". *)
+
+(* Extract Inlined Constant minus => "Extraction.minus". *)
+
+(* (*Extract Inlined Constant eq_nat_dec => "Big_int.eq_big_int".*) *)
+
+(* Extract Inlined Constant pow => "Big_int.power_big_int_positive_big_int". *)
+
+(* Extract Inductive list => "list" [ "[]" "(::)" ]. *)
+
+(* Extract Inlined Constant length => "Extraction.list_big_len". *)
+
+
+(* (** Fin is just nat with an index that is not relevant *) *)
+(* Extract Inductive fin => "Extraction.fin" [ "Extraction.fin1" "Extraction.fins" ] "Extraction.finrec". *)
+
+(* Extract Inlined Constant Fin.of_nat_lt => "Extraction.of_nat_lt". *)
+
+(* Extraction "compress.ml" compressX. *)

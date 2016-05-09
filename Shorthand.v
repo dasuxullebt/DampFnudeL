@@ -95,3 +95,14 @@ Proof. reflexivity. Qed.
 
 Example e3 : (d"1O" : parseError) = ParseError.
 Proof. reflexivity. Qed.
+
+Function bbyte (a b c d e f g h : bool) : Byte :=
+  Vcons _ a _
+        (Vcons _ b _
+               (Vcons _ c _
+                      (Vcons _ d _
+                             (Vcons _ e _
+                                    (Vcons _ f _
+                                           (Vcons _ g _
+                                                  (Vcons _ h _ (Vnil _)))))))).
+Definition NullByte := bbyte false false false false false false false false.

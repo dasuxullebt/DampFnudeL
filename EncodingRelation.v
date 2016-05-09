@@ -135,20 +135,40 @@ Definition fixed_dist_code := proj1_sig fixed_dist_code_ex.
 (** See RFC 1951, section 3.2.7. *)
 Definition HCLensNat := [16; 17; 18; 0; 8; 7; 9; 6; 10; 5; 11; 4; 12; 3; 13; 2; 14; 1; 15].
 
-(** [nBytesDirect n L S] means that [S] is a sequence of the [n] Bytes
+(* ONEBIT1 *)
+Inductive OneBit : bool -> LB -> Prop :=
+| oneBit : forall b, OneBit b [b].
+(* ONEBIT2 *)
+
+(* NBITS1 *)				
+Definition nBits (n : nat) : LB -> LB -> Prop :=
+  nTimesCons n OneBit.
+(* NBITS2 *)
+					
+(* NBITSVEC1 *)
+Definition nBitsVec (n : nat) (vb : vec bool n) (l : LB)
+: Prop := nBits n (to_list vb) l.
+(* NBITSVEC2 *)
+
+(** [nBytesDirect n S L] means that [S] is a sequence of the [n] Bytes
 in the bit sequence [L] without back references *)
 
-Inductive nBytesDirect : nat -> LB -> SequenceWithBackRefs Byte -> Prop :=
-| nBytesDirect0 : nBytesDirect 0 nil nil
-| nBytesDirectS : forall n a b bools thebyte,
-                    nBytesDirect n a b -> bools = to_list thebyte ->
-                    nBytesDirect (S n) (bools ++ a) ((inl thebyte) :: b).
+(* ONEBYTE1 *)					
+Definition OneByte : (Byte + nat*nat)%type -> LB -> Prop :=
+  AppCombine (nBitsVec 8) inl.
+(* ONEBYTE2 *)
 
+(* NBYTESDIRECT1 *)					
+Definition nBytesDirect (n : nat)
+: SequenceWithBackRefs Byte -> LB -> Prop :=
+  nTimesCons n OneByte.
+(* NBYTESDIRECT2 *)
+					
 (** [readBitsLSB length n l] means that the list [l] of given [length]
 encodes the number [n] in least-significant-first bit-order. *)
 
-Inductive readBitsLSB (length : nat) : nat -> LB -> Prop :=
-| mkRBLSB : forall l n, ll l = length -> LSBnat l n -> readBitsLSB length n l.
+Definition readBitsLSB (length : nat) : nat -> LB -> Prop :=
+  AppCombine (nTimesCons length OneBit) ListToNat.
 
 (** Uncompressed block, no padding. Padding is done in
 [OneBlockWithPadding]. See RFC 1951, section 3.2.4. *)
@@ -157,7 +177,7 @@ Definition UncompressedBlockDirect : SequenceWithBackRefs Byte -> LB -> Prop :=
   (readBitsLSB 16) >>=
   fun len  => (readBitsLSB 16) >>=
   fun nlen =>
-    (fun swbr lb => len + nlen = 2 ^ 16 - 1 /\ nBytesDirect len lb swbr).
+    (fun swbr lb => len + nlen = 2 ^ 16 - 1 /\ nBytesDirect len swbr lb).
 
 (** header parsing for dynamically compressed blocks *)
 
@@ -214,17 +234,23 @@ values, and [maxs] the corresponding maximal values. Then
 that the bit list [l] encodes the value [n], according to these
 rules. *)
 
-Inductive CompressedWithExtraBits {m : nat} (coding : deflateCoding m)
-          (mincode : nat) (xbitnums bases maxs : list nat) : nat -> LB -> Prop :=
-| complength : forall (base extra code max xbitnum : nat) (bbits xbits : LB),
-                 dc_enc coding (mincode + code) bbits -> (* code >= mincode *)
-                 nth_error xbitnums code = Some xbitnum -> (* number of additional bits *)
-                 nth_error bases code = Some base -> (* base *)
-                 nth_error maxs code = Some max -> (* maximum *)
-                 ll xbits = xbitnum -> (* additional bits have specified length *)
-                 LSBnat xbits extra -> (* binary number made by xbits *)
-                 base + extra <= max -> 
-                 CompressedWithExtraBits coding mincode xbitnums bases maxs (base + extra) (bbits ++ xbits).
+(* CWEB1 *)					      
+Inductive CompressedWithExtraBits
+       {m : nat} (coding : deflateCoding m)
+       (mincode : nat) (xbitnums bases maxs : list nat)
+       : nat -> LB -> Prop :=
+| complength
+  : forall (base extra code max xbitnum : nat) (bbits xbits : LB),
+     dc_enc coding (mincode + code) bbits -> (* code >= mincode *)
+     nth_error xbitnums code = Some xbitnum -> (* # of addit. bits*)
+     nth_error bases code = Some base -> (* base *)
+     nth_error maxs code = Some max -> (* maximum *)
+     ll xbits = xbitnum -> (* addit. bits have specified length *)
+     LSBnat xbits extra -> (* binary number made by xbits *)
+     base + extra <= max -> 
+     CompressedWithExtraBits coding mincode xbitnums
+                   bases maxs (base + extra) (bbits ++ xbits).
+(* CWEB2 *)					      
 
 (** A sequence of code lengths, encoded with the given code length
 coding. See RFC 1951 section 3.2.7. We encode into a sequence with
@@ -281,20 +307,35 @@ Inductive LitLenDist (clc : deflateCoding 19) (hlit hdist : nat) (litlen : defla
     SplitCodeLengths clc hlit hdist (Vmap lb (C 288 litlen)) (Vmap lb (C 32 dist)) input ->
     LitLenDist clc hlit hdist litlen dist input.
 
-Function CompressedLength (litlen : deflateCoding 288) := CompressedWithExtraBits litlen 257 repeatCodeExtraBits repeatCodeBase repeatCodeMax.
-Function CompressedDist (dist : deflateCoding 32) := CompressedWithExtraBits dist 0 distCodeExtraBits distCodeBase distCodeMax.
 
-Inductive CompressedSWBR (litlen : deflateCoding 288) (dist : deflateCoding 32) : SequenceWithBackRefs Byte -> LB -> Prop :=
-| cswbr_end : forall l, dc_enc litlen 256 l -> CompressedSWBR litlen dist [] l
+(* LENDIST1 *)
+Function CompressedLength (litlen : deflateCoding 288) :=
+ CompressedWithExtraBits
+   litlen 257 repeatCodeExtraBits repeatCodeBase repeatCodeMax.
+Function CompressedDist (dist : deflateCoding 32) :=
+ CompressedWithExtraBits 
+  dist 0 distCodeExtraBits distCodeBase distCodeMax.
+(* LENDIST2 *)
+
+(* CSWBR1 *)
+Inductive CompressedSWBR
+ (litlen : deflateCoding 288) (dist : deflateCoding 32)
+ : SequenceWithBackRefs Byte -> LB -> Prop :=
+| cswbr_end : forall l, dc_enc litlen 256 l ->
+                          CompressedSWBR litlen dist [] l
 | cswbr_direct : forall prev_swbr prev_lb l n,
                    dc_enc litlen (ByteToNat n) l ->
                    CompressedSWBR litlen dist prev_swbr prev_lb ->
-                   CompressedSWBR litlen dist ((inl n) :: prev_swbr) (l ++ prev_lb)
+                   CompressedSWBR litlen dist ((inl n) :: prev_swbr)
+		                              (l ++ prev_lb)
 | cswbr_backref : forall prev_swbr prev_lb l d lbits dbits,
                     CompressedSWBR litlen dist prev_swbr prev_lb ->
                     CompressedLength litlen l lbits ->
                     CompressedDist dist d dbits ->
-                    CompressedSWBR litlen dist ((inr (l, d)) :: prev_swbr) (lbits ++ dbits ++ prev_lb).
+                    CompressedSWBR litlen dist
+		                   ((inr (l, d)) :: prev_swbr)
+		                   (lbits ++ dbits ++ prev_lb).
+(* CSWBR2 *)
 
 Definition DynamicallyCompressedHeader : (deflateCoding 288 * deflateCoding 32) -> LB -> Prop :=
   (readBitsLSB 5)
@@ -319,23 +360,37 @@ Inductive StaticallyCompressedBlock  (output : SequenceWithBackRefs Byte) : LB -
 read. Padding is assured by making the bit count a multiple of
 eight. *)
 
-Inductive OneBlockWithPadding (out : SequenceWithBackRefs Byte) : nat -> LB -> Prop :=
-| obwpDCB : forall dcb n, DynamicallyCompressedBlock out dcb -> OneBlockWithPadding out n (false :: true :: dcb)
-| obwpSCB : forall scb n, StaticallyCompressedBlock out scb -> OneBlockWithPadding out n (true :: false :: scb)
-| obwpUCB : forall ucb n m pad, UncompressedBlockDirect out ucb ->
-                                n + ll (false :: false :: pad) = 8 * m ->
-                                ll pad < 8 ->
-                                OneBlockWithPadding out n (false :: false :: pad ++ ucb).
-
-Inductive ManyBlocks : nat -> SequenceWithBackRefs Byte -> LB -> Prop :=
-| lastBlock : forall n inp out, OneBlockWithPadding out (n + 1) inp -> ManyBlocks n out (true :: inp)
+(* TOPLEVEL5 *)
+Inductive OneBlockWithPadding
+  (out : SequenceWithBackRefs Byte) : nat -> LB -> Prop :=
+| obwpDCB : forall dcb n,
+  DynamicallyCompressedBlock out dcb ->
+   OneBlockWithPadding out n (false :: true :: dcb)
+| obwpSCB : forall scb n, StaticallyCompressedBlock out scb ->
+   OneBlockWithPadding out n (true :: false :: scb)
+| obwpUCB : forall ucb n m pad,
+   UncompressedBlockDirect out ucb ->
+   n + ll (false :: false :: pad) = 8 * m ->
+   ll pad < 8 ->
+   OneBlockWithPadding out n (false :: false :: pad ++ ucb).
+(* TOPLEVEL6 *)
+						     
+(* TOPLEVEL3 *)
+Inductive ManyBlocks : nat -> SequenceWithBackRefs Byte
+					  -> LB -> Prop :=
+| lastBlock : forall n inp out,
+                OneBlockWithPadding out (n + 1) inp ->
+                ManyBlocks n out (true :: inp)
 | middleBlock : forall n inp1 inp2 out1 out2,
     OneBlockWithPadding out1 (n + 1) inp1 ->
     ManyBlocks (n + 1 + ll inp1) out2 inp2 ->
     ManyBlocks n (out1 ++ out2) (false :: inp1 ++ inp2).
+(* TOPLEVEL4 *)
 
+(* TOPLEVEL1 *)
 Inductive DeflateEncodes (out : LByte) (inp : LB) : Prop :=
 | deflateEncodes : forall swbr,
                      ManyBlocks 0 swbr inp ->
                      ResolveBackReferences swbr out ->
                      DeflateEncodes out inp.
+(* TOPLEVEL2 *)
