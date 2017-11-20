@@ -44,14 +44,14 @@ Lemma list_of_nonnil_codes_does_not_contain_nil :
 Proof.
   intros n a v H isnil.
   dependent induction n.
-  assert (H0 : v = Vnil _).
+  assert (H0 : v = Vnil).
   apply vec_0_nil.
   rewrite -> H0 in H.
   inversion H.
   dependent destruction v.
   elim (list_eq_dec bool_dec a h).
   intros a_eq_h.  
-  replace (list_of_nonnil_codes (Vcons LB h n v))
+  replace (list_of_nonnil_codes (Vcons h n v))
   with (list_of_nonnil_codes v) in H.
   apply (IHn a v).
   apply H.
@@ -62,7 +62,7 @@ Proof.
   intros a_neq_h.
   assert (inor : h = a \/ (In a (list_of_nonnil_codes v))).
   apply in_inv.
-  assert (calc : h :: list_of_nonnil_codes v = list_of_nonnil_codes (Vcons LB h n v)).
+  assert (calc : h :: list_of_nonnil_codes v = list_of_nonnil_codes (Vcons h n v)).
   destruct h.
   contradict a_neq_h.
   apply isnil.
@@ -158,7 +158,7 @@ Proof.
   apply FS_inj.
   apply neq.
   assert (tmp1 : 
-            list_of_nonnil_codes (Vcons LB (b :: h) n v) =
+            list_of_nonnil_codes (Vcons (b :: h) n v) =
             (b :: h) :: list_of_nonnil_codes v).
   reflexivity.
   rewrite -> tmp1.
@@ -175,16 +175,16 @@ Proof.
   apply isin.
   elim cont.
   intros na nan.
-  assert (ispref:prefix (Vnth (Vcons LB (b :: h) n v) (FinFS na)) (Vnth (Vcons LB (b :: h) n v) FinF1)).
+  assert (ispref:prefix (Vnth (Vcons (b :: h) n v) (FinFS na)) (Vnth (Vcons (b :: h) n v) FinF1)).
   exists Bnil.
-  replace (Vnth (Vcons LB (b :: h) n v) (FinFS na)) with (Vnth v na).
+  replace (Vnth (Vcons (b :: h) n v) (FinFS na)) with (Vnth v na).
   rewrite -> nan.
-  replace (Vnth (Vcons LB (b :: h) n v) FinF1) with (b :: h).
+  replace (Vnth (Vcons (b :: h) n v) FinF1) with (b :: h).
   apply app_nil_r.
   reflexivity.
   reflexivity.
-  assert (contr: ((Vnth (Vcons LB (b :: h) n v) (FinFS na)) = Bnil) + ~ prefix (Vnth (Vcons LB (b :: h) n v) (FinFS na))
-                                                                        (Vnth (Vcons LB (b :: h) n v) FinF1)).
+  assert (contr: ((Vnth (Vcons (b :: h) n v) (FinFS na)) = Bnil) + ~ prefix (Vnth (Vcons (b :: h) n v) (FinFS na))
+                                                                        (Vnth (Vcons (b :: h) n v) FinF1)).
   apply pf.
   intros Q.
   inversion Q.
@@ -241,19 +241,19 @@ Proof.
   reflexivity.
   dependent destruction v.
   destruct h.
-  replace (list_of_nonnil_codes (Vcons LB Bnil n v)) with (list_of_nonnil_codes v).
-  assert (tmp1 : kraft_vec (Vcons LB Bnil n v) == kraft_vec v).
-  replace (kraft_vec (Vcons LB Bnil n v)) with (0 + kraft_vec v).
+  replace (list_of_nonnil_codes (Vcons Bnil n v)) with (list_of_nonnil_codes v).
+  assert (tmp1 : kraft_vec (Vcons Bnil n v) == kraft_vec v).
+  replace (kraft_vec (Vcons Bnil n v)) with (0 + kraft_vec v).
   ring.
   reflexivity.
   rewrite -> tmp1.
   apply IHn.
   reflexivity.
-  assert (tmp1:kraft_list (list_of_nonnil_codes (Vcons LB (b :: h) n v)) =
+  assert (tmp1:kraft_list (list_of_nonnil_codes (Vcons (b :: h) n v)) =
                (1 # (e2 (ll (b :: h)))) + kraft_list (list_of_nonnil_codes v)).
   reflexivity.
   rewrite -> tmp1.
-  assert (tmp2:kraft_vec (Vcons LB (b :: h) n v) = (1 # (e2 (ll (b :: h)))) + (kraft_vec v)).
+  assert (tmp2:kraft_vec (Vcons (b :: h) n v) = (1 # (e2 (ll (b :: h)))) + (kraft_vec v)).
   reflexivity.
   rewrite -> tmp2.
   rewrite -> IHn.
@@ -263,7 +263,7 @@ Defined.
 Lemma kraft_nvec_positive : forall {n} (vn : vec nat n), kraft_nvec vn >= 0.
 Proof.
   induction vn.
-  replace (kraft_nvec (Vnil nat)) with 0.
+  replace (kraft_nvec Vnil) with 0.
   compute.
   intros Q.
   inversion Q.
@@ -271,8 +271,8 @@ Proof.
   elim (eq_nat_dec h 0%nat).
   intros h_0.
   rewrite -> h_0.
-  assert (H : kraft_nvec (Vcons nat 0%nat n vn) = Qplus 0 (kraft_nvec vn)).
-  assert (H1 : kraft_nvec (Vcons nat 0%nat n vn) = Qplus 0 (fold 0 Qplus (Vmap (fun d =>
+  assert (H : kraft_nvec (Vcons 0%nat n vn) = Qplus 0 (kraft_nvec vn)).
+  assert (H1 : kraft_nvec (Vcons 0%nat n vn) = Qplus 0 (fold 0 Qplus (Vmap (fun d =>
                                                                                   match d with
                                                                                     | 0%nat => 0%Q
                                                                                     | d' => 1 # (e2 d')
@@ -299,8 +299,8 @@ Proof.
   induction h.
   contradict h_neq_0.
   auto.
-  assert (H : kraft_nvec (Vcons nat (S h) n vn) = Qplus (1 # (e2 (S h))) (kraft_nvec vn)).
-  assert (H1 : kraft_nvec (Vcons nat (S h) n vn) = Qplus (1 # (e2 (S h))) (fold 0 Qplus (Vmap (fun d =>
+  assert (H : kraft_nvec (Vcons (S h) n vn) = Qplus (1 # (e2 (S h))) (kraft_nvec vn)).
+  assert (H1 : kraft_nvec (Vcons (S h) n vn) = Qplus (1 # (e2 (S h))) (fold 0 Qplus (Vmap (fun d =>
                                                                                                  match d with
                                                                                                    | 0%nat => 0%Q
                                                                                                    | d' => 1 # (e2 d')
@@ -344,17 +344,17 @@ Proof.
   dependent destruction v2.
   dependent induction q.
   assert (h_eq_0 : h = 0%nat).
-  replace h with (Vnth (Vcons nat h n v1) FinF1).
+  replace h with (Vnth (Vcons h n v1) FinF1).
   apply (proj1 (eq FinF1) eq_refl).
   auto.
   rewrite -> h_eq_0.
   assert (h0_eq_sr : h0 = S r).
-  replace h0 with (Vnth (Vcons nat h0 n v2) FinF1).
+  replace h0 with (Vnth (Vcons h0 n v2) FinF1).
   apply (proj1 (eq FinF1) eq_refl).
   auto.
   rewrite -> h0_eq_sr.
-  replace (kraft_nvec (Vcons nat (S r) n v2)) with ((1 # e2 (S r)) + kraft_nvec v2).
-  replace (kraft_nvec (Vcons nat 0%nat n v1)) with (0 + kraft_nvec v1).
+  replace (kraft_nvec (Vcons (S r) n v2)) with ((1 # e2 (S r)) + kraft_nvec v2).
+  replace (kraft_nvec (Vcons 0%nat n v1)) with (0 + kraft_nvec v1).
   replace v2 with v1.
   rewrite -> Qplus_assoc.
   rewrite -> Qplus_0_r.
@@ -362,8 +362,8 @@ Proof.
   apply eq_nth_iff.
   intros p1 p2 peq.
   rewrite -> peq.
-  replace (Vnth v1 p2) with (Vnth (Vcons nat h n v1) (FinFS p2)).
-  replace (Vnth v2 p2) with (Vnth (Vcons nat h0 n v2) (FinFS p2)).
+  replace (Vnth v1 p2) with (Vnth (Vcons h n v1) (FinFS p2)).
+  replace (Vnth v2 p2) with (Vnth (Vcons h0 n v2) (FinFS p2)).
   assert (neq : FinFS p2 <> FinF1).
   intros Q.
   inversion Q.
@@ -406,12 +406,12 @@ Proof.
   inversion Q.
   apply (proj2 (eq FinF1) ffq).
   rewrite <- h_eq_h0.
-  replace (kraft_nvec (Vcons nat h0 n v2)) with ((fun d =>
+  replace (kraft_nvec (Vcons h0 n v2)) with ((fun d =>
                                                     match d with
                                                       | 0%nat => 0%Q
                                                       | d' => 1 # (e2 d')
                                                     end) h0 + kraft_nvec v2).
-  replace (kraft_nvec (Vcons nat h0 n v1)) with ((fun d =>
+  replace (kraft_nvec (Vcons h0 n v1)) with ((fun d =>
                                                     match d with
                                                       | 0%nat => 0%Q
                                                       | d' => 1 # (e2 d')
@@ -427,8 +427,8 @@ Lemma kraft_nvec_le : forall n (v1 v2 : vec nat n),
 Proof.
   intros n v1 v2 imp.
   dependent induction n.
-  replace v1 with (Vnil nat).
-  replace (kraft_nvec (Vnil nat)) with 0.
+  replace v1 with (@Vector.nil nat).
+  replace (kraft_nvec Vnil) with 0.
   apply kraft_nvec_positive.
   auto.
   symmetry.
@@ -437,8 +437,8 @@ Proof.
   dependent destruction v1.
   dependent destruction v2.
   assert (h' : h = h0 \/ h = 0%nat).
-  replace h with (Vnth (Vcons nat h n v1) FinF1).
-  replace h0 with (Vnth (Vcons nat h0 n v2) FinF1).
+  replace h with (Vnth (Vcons h n v1) FinF1).
+  replace h0 with (Vnth (Vcons h0 n v2) FinF1).
   apply imp.
   auto.
   auto.
@@ -452,8 +452,8 @@ Proof.
   auto.
   rewrite -> h_eq_0.
   rewrite -> h0_eq_0.
-  replace (kraft_nvec (Vcons nat 0%nat n v1)) with (0 + kraft_nvec v1).
-  replace (kraft_nvec (Vcons nat h0 n v2)) with (0 + kraft_nvec v2).
+  replace (kraft_nvec (Vcons 0%nat n v1)) with (0 + kraft_nvec v1).
+  replace (kraft_nvec (Vcons h0 n v2)) with (0 + kraft_nvec v2).
   apply Qplus_le_compat.
   compute.
   intros Q.
@@ -478,8 +478,8 @@ Proof.
   induction h0.
   contradict h0_neq_0.
   auto.
-  replace (kraft_nvec (Vcons nat (S h0) n v1)) with ((1 # (e2 (S h0))) + kraft_nvec v1).
-  replace (kraft_nvec (Vcons nat (S h0) n v2)) with ((1 # (e2 (S h0))) + kraft_nvec v2).
+  replace (kraft_nvec (Vcons (S h0) n v1)) with ((1 # (e2 (S h0))) + kraft_nvec v1).
+  replace (kraft_nvec (Vcons (S h0) n v2)) with ((1 # (e2 (S h0))) + kraft_nvec v2).
   apply Qplus_le_compat.
   apply Qle_refl.
   apply IHn.
@@ -496,8 +496,8 @@ Proof.
   contradict h0_neq_0.
   auto.
   rewrite -> h_eq_0.
-  replace (kraft_nvec (Vcons nat 0%nat n v1)) with (0 + kraft_nvec v1).
-  replace (kraft_nvec (Vcons nat (S h0) n v2)) with ((1 # e2 (S h0)) + kraft_nvec v2).
+  replace (kraft_nvec (Vcons 0%nat n v1)) with (0 + kraft_nvec v1).
+  replace (kraft_nvec (Vcons (S h0) n v2)) with ((1 # e2 (S h0)) + kraft_nvec v2).
   apply Qplus_le_compat.
   replace (1 # e2 (S h0)) with (/ ((Zpos (e2 (S h0))) # 1)).
   apply Qinv_le_0_compat.

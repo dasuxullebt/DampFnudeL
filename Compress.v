@@ -8,6 +8,7 @@ Require Import Coq.Numbers.Natural.Peano.NPeano.
 Require Import Program.
 Require Export FMapAVL.
 Require Export Coq.Structures.OrderedTypeEx.
+Require Import Omega.
 
 Require Import HashTable.
 Require Import Intervals.
@@ -144,11 +145,13 @@ contains the uncompressed bytes beginning with that index. *)
 
 Definition Entry := (LByte * nat)%type.
 
-(** The entry checksum is just the sum of the byte values modulo 128 *)
+Definition htsize := d"79023".
+
+(** The entry checksum is just the sum of the byte values modulo htsize *)
 Function EntryChecksum (e : Entry) : option nat :=
   match e with
     | (b1 :: b2 :: b3 :: r, _) =>
-      Some ((ByteToNat b1 + ByteToNat b2 + ByteToNat b3) mod 128)
+      Some ((ByteToNat b1 + 3 * ByteToNat b2 + 5 * ByteToNat b3) mod htsize)
     | _ => None
   end.
 
@@ -212,7 +215,7 @@ Proof.
 Qed.
 
 (** Constant for history *)
-Definition hist := 256.
+Definition hist := 1.
 
 Function insert (e : Entry) (t : HashTable) : HashTable :=
   match EntryChecksum e with
@@ -397,6 +400,74 @@ Proof.
   auto.
   omega.
 Qed.
+
+Lemma nthNthLast_1 : forall {A : Set} d l q (m : A),
+                       nthLast d l m -> nthLast d (q :: l) m.
+Proof.
+  intros A d l q m nl.
+  inversion nl as [B C D E G H].
+  rewrite -> app_comm_cons.
+  constructor.
+Qed.
+
+Lemma nthNthLast_2 : forall {A : Set} d l q (m : A),
+                       nthLast d l m -> nthLast (S d) (l ++ [q]) m.
+Proof.
+  intros A d l q m nl.
+  inversion nl as [B C D E G H].
+  rewrite <- app_assoc.
+  rewrite <- app_comm_cons.
+  replace (S (ll (m :: C))) with (ll (m :: C ++ [q])).
+  constructor.
+
+  rewrite -> app_comm_cons.
+  rewrite -> app_length.
+  simpl.
+  omega.
+Qed.
+
+Lemma nthNthLast : forall {A : Set} d l q (m : A),
+                     S d <= ll l -> nth (ll l - (S d)) l q = m -> nthLast (S d) l m.
+Proof.
+  intros A.
+
+  induction d;
+  [ apply (rev_ind (fun l => forall (q m : A),
+                               1 <= ll l -> nth (ll l - 1) l q = m -> nthLast 1 l m));
+    [ intros q m lm ln;
+      inversion lm
+    | intros x l IHl q m l1 ln;
+      rewrite <- rev_nth in ln;
+      [ rewrite -> rev_app_distr in ln;
+        simpl in ln;
+        rewrite -> ln;
+        apply (makeNthLast l [] m)
+      | rewrite -> app_length;
+        simpl;
+        omega ]]
+  | apply (rev_ind (fun l =>
+                      forall (q m : A),
+                        S (S d) <= ll l -> nth (ll l - S (S d)) l q = m -> nthLast (S (S d)) l m));
+  [ intros q m ssd ln;
+    simpl in ssd;
+    omega
+  | intros x l IHl q m l1 ln;
+    apply nthNthLast_2;
+    eapply IHd;
+    [ rewrite -> app_length in l1;
+      simpl in l1;
+      omega
+    | rewrite -> app_nth1 in ln;
+      [ rewrite -> app_length in ln;
+        simpl in ln;
+        replace (ll l + 1 - S (S d)) with (ll l - S d) in ln; [exact ln | omega]
+      | rewrite -> app_length;
+        simpl;
+        rewrite -> app_length in l1;
+        simpl in l1;
+        omega ]]]].
+Qed.
+
 
 Lemma CorrectEntryToBackRef :
   forall done todo entry donelen maxlen,
@@ -1639,13 +1710,14 @@ Extract Constant minus => "Extraction.natminus".
 
 Extract Constant pow => "(Prelude.^)".
 
+Extract Constant modulo => "Prelude.mod".
+
 Extract Inductive list => "[]" [ "[]" "(\ a b -> a : b)" ]
                                "(\ n c l -> case l of { [] -> n [] ; (b : bs) -> c b bs })".
 
 Extract Inductive vec => "Extraction.Vec" ["Extraction.vecNil" "Extraction.vecCons"] "Extraction.vecRec".
 
-
-Extraction "Compress/Compress.hs" compressX.
+Extraction "Compress.hs" compressX.
 
 (* Extraction Language Ocaml. *)
 

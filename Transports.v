@@ -1,4 +1,4 @@
-Require Import Coq.Init.Logic.
+ Import Coq.Init.Logic.
 Require Import Coq.Vectors.Vector.
 Require Import Program.
 Require Import Coq.Logic.ProofIrrelevance.
@@ -7,7 +7,7 @@ Require Import Shorthand.
 Require Import Coq.Vectors.Fin.
 Require Import Omega.
 
-Lemma vec_0_nil : forall {A} (v : vec A 0%nat), v = Vnil A.
+Lemma vec_0_nil : forall {A} (v : vec A 0%nat), v = Vnil.
 Proof.
   intros A v.
   dependent induction v.
@@ -69,17 +69,20 @@ Proof.
            (fun _ => left _)
            (fun _ _ => right _)
            (fun _ _ => right _)
-           (fun _ _ _ H => if H then left _ else right _)).
- auto.
- intros Q.
- inversion Q.
- intros Q.
- inversion Q.
- rewrite _H.
- auto.
- contradict _H.
- apply FS_inj.
- trivial.
+           (fun _ _ _ H => if H then left _ else right _));
+  [ auto
+  | intro Q;
+    inversion Q
+  | intro Q;
+    inversion Q
+  | f_equal;
+    trivial
+  | match goal with
+    | X : _ <> _ |- _ =>
+      contradict X;
+        apply FS_inj;
+        trivial
+    end].
 Defined.
 
 Notation f_nat := Fin.to_nat.
@@ -88,15 +91,13 @@ Definition f_le {m} (a b : Fin.t m) : Prop := ` (f_nat a) <= ` (f_nat b).
 
 Definition fin_id {a b} (eq : a = b) (fa : fin a) : fin b.
 refine (match a as c return (a = c -> _) with
-            | 0 => (fun _ => _)
-            | (S n) => (fun _ => _)
-        end eq_refl).
-contradict fa.
-rewrite _H.
-intros Q.
-inversion Q.
-rewrite <- eq.
-apply fa.
+            | 0 => (fun eq_ => _)
+            | (S n) => (fun eq_ => _)
+        end eq_refl);
+  [ rewrite -> eq_ in fa;
+    inversion fa
+  | rewrite <- eq;
+    exact fa ].
 Defined.
 
 Lemma f_nat_id : forall {n m} a (eq : n = m), ` (f_nat a) = ` (f_nat (fin_id eq a)).

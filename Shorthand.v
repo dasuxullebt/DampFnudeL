@@ -4,6 +4,8 @@ Require Import Coq.NArith.BinNatDef.
 Require Import String.
 Require Import Coq.Arith.Compare_dec. (* nat_compare *)
 
+(* version 8.7: Require Import FunInd. *)
+
 Notation vec := Vector.t.
 Notation LB := (list bool).
 Notation ll := List.length.
@@ -12,14 +14,16 @@ Notation lb := (ll (A:=bool)).
 Notation Bnil := (nil (A := bool)).
 Notation VecLB := (vec LB).
 
+(* BYTE1 *)		
 Notation Byte := (vec bool 8).
-
+(* BYTE2 *)
+		
 Notation LByte := (list Byte).
 
 Notation Vnth := Vector.nth.
 
-Notation Vnil := Vector.nil.
-Notation Vcons := Vector.cons.
+Notation Vnil := (@Vector.nil _).
+Notation Vcons := (@Vector.cons _).
 Notation Vmap := Vector.map.
 
 Notation fin_rect2 := Fin.rect2.
@@ -33,8 +37,8 @@ Notation FinF1 := Fin.F1.
 use natural numbers instead of Fin.t as indices *)
 (* TODO: This should be obsolete when we use maps *)
 Inductive Vnth_is {A : Type} : forall (n : nat), nat -> vec A n -> A -> Prop :=
-| vnthIsZero : forall a n b, Vnth_is (S n) 0 (Vcons _ a _ b) a
-| vnthIsCons : forall a n m x b, Vnth_is n m b a -> Vnth_is (S n) (S m) (Vcons _ 
+| vnthIsZero : forall a n b, Vnth_is (S n) 0 (Vcons a _ b) a
+| vnthIsCons : forall a n m x b, Vnth_is n m b a -> Vnth_is (S n) (S m) (Vcons 
 x _ b) a.
 
 Fixpoint Vnth_err {A : Type} {n : nat} (v : vec A n) (m : nat) : option A :=
@@ -97,12 +101,12 @@ Example e3 : (d"1O" : parseError) = ParseError.
 Proof. reflexivity. Qed.
 
 Function bbyte (a b c d e f g h : bool) : Byte :=
-  Vcons _ a _
-        (Vcons _ b _
-               (Vcons _ c _
-                      (Vcons _ d _
-                             (Vcons _ e _
-                                    (Vcons _ f _
-                                           (Vcons _ g _
-                                                  (Vcons _ h _ (Vnil _)))))))).
+  Vcons a _
+        (Vcons b _
+               (Vcons c _
+                      (Vcons d _
+                             (Vcons e _
+                                    (Vcons f _
+                                           (Vcons g _
+                                                  (Vcons h _ Vnil))))))).
 Definition NullByte := bbyte false false false false false false false false.

@@ -17,13 +17,15 @@ Fixpoint foldlist {A B} (null : B) (f : A -> B -> B) (l : list A) : B :=
       | a :: r => f a (foldlist null f r)
   end.
 
+(* PHEAPDEF1 *)
 Inductive pheap A : Type :=
 | Empty : pheap A
 | Heap : A -> list (pheap A) -> pheap A.
 
 Arguments Empty [_].
 Arguments Heap [_] _ _.
-
+(* PHEAPDEF2 *)
+			   
 Inductive pheap_in {A} : A -> pheap A -> Prop :=
 | H_in : forall a l, pheap_in a (Heap a l)
 | L_in : forall a b h l, In h l -> pheap_in a h -> pheap_in a (Heap b l).
@@ -32,7 +34,10 @@ Definition pheap_subseteq {A} a b := forall (x : A), pheap_in x a -> pheap_in x 
 
 Definition pheap_subsetneq {A} a b := @pheap_subseteq A a b /\ exists x, pheap_in x b /\ ~ pheap_in x a.
 
-Definition pheap_ext_eq {A} a b := @pheap_subseteq A a b /\ @pheap_subseteq A b a.
+(* EXTEQ1 *)
+Definition pheap_ext_eq {A} a b :=
+    @pheap_subseteq A a b /\ @pheap_subseteq A b a.
+(* EXTEQ2 *)
 
 Lemma not_in_empty : forall {A} (b : A), ~ pheap_in b Empty.
 Proof.
@@ -40,11 +45,14 @@ Proof.
   inversion phi.
 Qed.
 
+(* PHEAPCORRECT1 *)
 Inductive pheap_correct {A} (cmp : A -> A -> bool) : pheap A -> Prop :=
 | E_correct : pheap_correct cmp Empty
 | H_correct : forall b l, Forall (pheap_correct cmp) l ->
-                          (forall c, pheap_in c (Heap b l)-> cmp b c = true) ->
+                          (forall c, pheap_in c (Heap b l)
+			             -> cmp b c = true) ->
                           pheap_correct cmp (Heap b l).
+(* PHEAPCORRECT2 *)
 
 Definition find_min {A} (h : pheap A) : option A :=
   match h with
@@ -52,12 +60,16 @@ Definition find_min {A} (h : pheap A) : option A :=
     | Heap a _ => Some a
   end.
 
+
+(* CMP1 *)
 Definition cmp_ordering {A} (cmp : A -> A -> bool) :=
   (forall a, cmp a a = true) /\
   (forall a b c, cmp a b = true -> cmp b c = true -> cmp a c = true) /\
   (forall a b, cmp a b = true -> cmp b a = true -> a = b) /\
   (forall a b, cmp a b = true \/ cmp b a = true).
+(* CMP2 *)
 
+(* FINDMINSPEC1 *)
 Lemma find_min_spec : forall {A} (b : A) cmp h,
                            cmp_ordering cmp ->
                            pheap_correct cmp h ->
@@ -65,6 +77,7 @@ Lemma find_min_spec : forall {A} (b : A) cmp h,
                            exists a,
                              Some a = find_min h /\
                              cmp a b = true.
+(* FINDMINSPEC2 *)			     
 Proof.
   intros A b cmp h [refl [trans [antisym comp]]] corr b_in.
 
@@ -93,10 +106,12 @@ Function merge {A} (cmp : A -> A -> bool) (g h : pheap A) :=
           end
       end
   end.
-  
+
+(* MERGESPEC1 *)
 Lemma merge_spec : forall {A} cmp (b : A) g h,
                      (pheap_in b g \/ pheap_in b h) <->
                      pheap_in b (merge cmp g h).
+(* MERGESPEC2 *)
 Proof.
   intros A cmp b g h.
   split.
@@ -269,10 +284,12 @@ Qed.
 Function insert {A} (cmp : A -> A -> bool) (b : A) (h : pheap A) :=
   merge cmp (Heap b nil) h.
 
+(* INSERTSPEC1 *)
 Lemma insert_spec :
   forall {A} (cmp : A -> A -> bool) (a b : A) (h : pheap A),
     cmp_ordering cmp ->
     (pheap_in a (insert cmp b h) <-> (a = b \/ pheap_in a h)).
+(* INSERTSPEC2 *)
 Proof.
   intros ? ? a b ? ord.
   split;

@@ -3,13 +3,85 @@ Require Import ZArith.
 Require Import List.
 Import ListNotations.
 
+Require Import StrongDec.
 Require Import Shorthand.
 Require Import Combi.
 Require Import Repeat.
 Require Import Pheap.
 Require Import Backreferences.
 Require Import LSB.
- 
+
+Fixpoint drop {A : Set} (n : nat) (l : list A) :=
+  match n with
+  | 0 => l
+  | S n_ => match l with
+            | [] => []
+            | _ :: l_ => drop n_ l_
+            end
+  end.
+
+Lemma drop_forall : forall (A : Set) (P : A -> Prop) (l : list A) (n : nat),
+    Forall P l -> Forall P (drop n l).
+Proof.
+  intros A P l n.
+  revert n l.
+  induction n as [|n IHn].
+  auto.
+  intros l allL.
+  destruct l.
+  auto.
+  simpl.
+  apply IHn.
+  inversion allL.
+  trivial.
+Qed.
+
+Lemma drop_ll : forall {A : Set} (l : list A), drop (ll l) l = [].
+Proof.
+  induction l.
+  reflexivity.
+  simpl.
+  auto.
+Qed.
+  
+Lemma drop_sum : forall {A : Set} {n m : nat} (l : list A),
+    drop n (drop m l) = drop (n + m) l.
+Proof.
+  intros A n m l.
+  revert m l.
+  induction n as [|n IHn].
+  + intros m l.
+    reflexivity.
+  + induction m as [|m IHm].
+    - replace (S n + 0) with (S n).
+      * intros l.
+        replace (drop 0 l) with l; reflexivity.
+      * omega.
+    - replace (S n + S m) with (S (S n + m)).
+      * destruct l as [|x l].
+        ++ reflexivity.
+        ++ auto.
+           replace (drop (S (S n + m)) (x :: l))
+           with (drop (S n + m) l); [|reflexivity].
+           replace (drop (S m) (x :: l))
+           with (drop m l); [|reflexivity].
+           apply IHm.
+      * omega.
+Qed.
+
+Lemma drop_nth_error : forall {A : Set} (n : nat) (l : list A),
+    nth_error (drop n l) 0 = nth_error l n.
+Proof.
+  intro A.
+  induction n as [|n IHn].
+  auto.
+  induction l as [|x l IHl].
+  reflexivity.
+  replace (drop (S n) (x :: l)) with (drop n l); [|reflexivity].
+  replace (nth_error (x :: l) (S n)) with (nth_error l n); [|reflexivity].
+  apply IHn.
+Qed.
+  
 Function natcmp n m := match nat_compare n m with
                            | Gt => false
                            | _ => true
@@ -70,6 +142,395 @@ Lemma NatPairCmp_cmp : cmp_ordering NatPairCmp.
 Proof.
   apply LexOrd; apply natcmp_cmp.
 Qed.
+
+Definition pointsTo {A} (input : SequenceWithBackRefs A) (dst src : nat) :=
+  src < dst /\ nth_error input dst = Some (inr (1, dst - src)).
+
+Lemma pointsTo_dst_unique
+: forall {A} (input : SequenceWithBackRefs A) (src1 src2 dst : nat),
+    pointsTo input dst src1 -> pointsTo input dst src2 -> src1 = src2.
+Proof.
+  intros A input src1 src2 dst pto1 pto2.
+  destruct pto1 as [pto1a pto1b].
+  destruct pto2 as [pto2a pto2b].
+  rewrite -> pto2b in pto1b.
+  inversion pto1b.
+  omega.
+Qed.
+
+Record ResolverState (A E : Set) (i : SequenceWithBackRefs A) : Type :=
+  mkResolverState {
+      D : nat;
+      l_m : SequenceWithBackRefs A;
+      l_n : SequenceWithBackRefs A;
+      m : nat;
+      n : nat;
+      b : pheap (nat * A);
+      c : pheap (nat * nat);
+    }.
+
+Arguments D [_] [_] [_] _.
+Arguments l_m [_] [_] [_] _.
+Arguments l_n [_] [_] [_] _.
+Arguments m [_] [_] [_] _.
+Arguments n [_] [_] [_] _.
+Arguments b [_] [_] [_] _.
+Arguments c [_] [_] [_] _.
+
+Record ResolverStateProperties (A E : Set) (i : SequenceWithBackRefs A)
+  (R : ResolverState A E i) : Prop :=
+  mkResolverStateProperties {
+      brb : BackRefsBounded 1 1 1 (D R) i;
+      l_m_inv : (l_m R) = drop (m R) i;
+      l_n_inv : (l_n R) = drop (n R) i;
+      b_inv : forall r, ResolveBackReferences i r ->
+                        forall o1 o2 e,
+                          (o1 < (n R) /\ (n R) <= o2 /\ pointsTo i o2 o1) <->
+                          pheap_in (o2, nth o1 r e) (b R);
+      c_inv : forall o1 o2, ((n R) <= o1 /\ o1 < o2 /\ o2 < (m R) /\ pointsTo i o2 o1)
+                            <-> pheap_in (o1, o2) (c R);
+      mn : (m R) - (n R) >= (D R) \/ (n R) = 0 \/ (m R) = length i;
+      phase : ((n R) = 0 /\ (m R) - (n R) < (D R)) \/
+              ((m R) <> ll i /\ (m R) - (n R) >= (D R)) \/
+              (m R) = ll i;
+    }.
+
+Arguments ResolverStateProperties [_] [_] [_] _.
+
+Function m_inc A E i x l_m1
+         (r : ResolverState A E i)
+         (inv : (l_m r) = x :: l_m1) : option (ResolverState A E i) :=
+  match x with
+  | inl _ => Some (mkResolverState A E i (D r) l_m1 (l_n r)
+                                   (S (m r)) (n r) (b r) (c r))
+  | inr (_, d) => if (m r) <? d
+                  then error
+                  else if (D r) <=? d
+                       then error
+                       else Some (mkResolverState A E i (D r) l_m1 (l_n r)
+                                                  (S (m r)) (n r) (b r) (insert NatPairCmp ((m r) - d, (m r)) (c r)))
+  end.
+
+Arguments m_inc [_] [_] [_] _ _ _ _.
+
+Lemma m_inc_inv :
+  forall A E i (r s : ResolverState A E i) x l_m1 (inv : (l_m r) = x :: l_m1),
+    ResolverStateProperties r ->
+    m_inc x l_m1 r inv = Some s ->
+    ResolverStateProperties s.
+Proof.
+  intros A E i r s x l_m1 inv rsp mic.
+  destruct x as [char | [refL refD]].
+  * simpl in mic.
+    inversion mic.
+    constructor.
+    + simpl.
+      firstorder.
+    + simpl.
+      set (X := l_m_inv _ _ _ _ rsp).
+      rewrite -> inv in X.   
+      destruct i as [|i_ i].
+      - destruct (m r); discriminate.
+      - auto.
+        replace l_m1 with (drop 1 (inl char :: l_m1)); [|reflexivity].
+        destruct (m r) as [| n0].
+        ++ simpl.
+           inversion X.
+           auto.
+        ++ simpl in X.
+           rewrite -> X.
+           replace (S n0) with (1 + n0); [|omega].
+           apply drop_sum.
+    + simpl.
+      apply (l_n_inv _ _ _ _ rsp).
+    + simpl.
+      apply (b_inv _ _ _ _ rsp).
+    + simpl.
+      intros o1 o2.
+      split.
+      - intros [no1 [o1o2 [o2m pt]]].
+        destruct (o2 <? m r) eqn:o2mr_eq.
+        ++ apply (c_inv _ _ _ _ rsp).
+           split.
+           auto.
+           split.
+           auto.
+           split.
+           apply Nat.ltb_lt.
+           auto.
+           auto.        
+        ++ destruct (nat_compare o2 (m r)) eqn:nco.
+           apply nat_compare_eq in nco.
+           rewrite -> nco in pt.
+           unfold pointsTo in pt.
+           destruct pt as [o1mr nerr].
+           rewrite <- drop_nth_error in nerr.
+           rewrite <- (l_m_inv _ _ _ r) in nerr.
+           -- rewrite -> inv in nerr.
+              inversion nerr.
+           -- auto.
+           -- apply nat_compare_lt in nco.
+              apply (c_inv _ _ _ _ rsp).
+              auto.
+           -- apply nat_compare_gt in nco.
+              omega.
+      - intro phi.
+        apply (c_inv _ _ _ _ rsp) in phi.
+        firstorder.
+    + inversion mic.
+      destruct (mn _ _ _ _ rsp) as [X | X].
+      apply or_introl.
+      replace (m _) with (S (m r)).
+      replace (n _) with (n r).
+      replace (D _) with (D r).
+      omega.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+      apply or_intror.
+      destruct X as [X | X].
+      apply or_introl.
+      simpl.
+      auto.
+      apply or_intror.
+      rewrite -> (l_m_inv _ _ _ r) in inv.
+      rewrite -> X in inv.
+      rewrite -> drop_ll in inv.
+      discriminate.
+      auto.
+    + replace (n _) with (n r).
+      replace (m _) with (S (m r)).
+      replace (D _) with (D r).
+      destruct (phase _ _ _ _ rsp) as [X | X].
+      destruct (lt_dec (S (m r) - (n r)) (D r)) as [islt | isnlt].
+      apply or_introl.
+      firstorder.
+      apply or_intror.
+      destruct (eq_nat_dec (S (m r)) (ll i)).
+      auto.
+      apply or_introl.
+      split.
+      trivial.
+      omega.
+      destruct X as [[X Y]|X].
+      apply or_intror.
+      destruct (eq_nat_dec (S (m r)) (ll i)).
+      auto.
+      apply or_introl.
+      split.
+      trivial.
+      omega.
+      rewrite -> (l_m_inv _ _ _ r) in inv.
+      rewrite -> X in inv.
+      rewrite -> drop_ll in inv.
+      inversion inv.
+      auto.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+* simpl in mic.
+  destruct (m r <? refD) eqn:mref; [ discriminate |].
+  destruct (D r <=? refD) eqn:Dref; [ discriminate |].
+  + inversion mic.
+    constructor.
+    - simpl.
+      apply rsp.
+    - replace (l_m _) with l_m1.
+      replace (m _) with (S (m r)).
+      rewrite -> (l_m_inv _ _ _ _ rsp) in inv.
+      destruct (m r) as [|n0].
+      ++ simpl in inv.
+         rewrite -> inv.
+         reflexivity.
+      ++ idtac.
+         replace (drop (S (S n0)) i) with (drop 1 (drop (S n0) i)).
+         -- rewrite -> inv.
+            reflexivity.
+         -- rewrite -> drop_sum.
+            replace (1 + S n0) with (S (S n0)).
+            ** reflexivity.
+            ** omega.            
+      ++ reflexivity.
+      ++ reflexivity.
+   - simpl.
+     apply rsp.
+   - simpl.
+     apply rsp.
+   - simpl.
+     intros o1 o2.
+     assert (K : BackRefsBounded 1 1 1 (D r) (l_m r)).
+     ++ rewrite -> (l_m_inv _ _ _ _ rsp).
+        unfold BackRefsBounded.
+        apply drop_forall.
+        apply rsp.
+     ++ split.
+        -- intros [nr01 [o1o2 [o2smr pto]]].
+           destruct (eq_nat_dec o2 (m r)) as [iseq | isneq].
+           ** apply insert_spec.
+              +++  apply NatPairCmp_cmp.
+              +++  apply or_introl.
+                   rewrite -> iseq.
+                   replace o1 with (m r - refD).
+                   ---  reflexivity.
+                   --- idtac.
+                       apply (pointsTo_dst_unique i _ _ (m r)).
+                       *** split.
+                           ++++ rewrite -> inv in K.
+                                inversion K as [| c l brb all [cinr llm]].
+                                inversion brb.
+                                omega.
+                           ++++ rewrite <- drop_nth_error.
+                                rewrite <- (l_m_inv _ _ _ _ rsp).
+                                rewrite -> inv.
+                                simpl.
+                                f_equal.
+                                f_equal.
+                                replace (m r - (m r - refD)) with refD.
+                               ---- inversion K as [K1 | ? ? K2 K3 K4].
+                                    **** rewrite <- K1 in inv.
+                                         discriminate.
+                                    **** idtac.
+                                         inversion K2 as [c D | c d ? ? ? ? KQ].
+                                         +++++ rewrite <- D in K4.
+                                               rewrite <- K4 in inv.
+                                               discriminate.
+                                         +++++ idtac.
+                                               rewrite <- KQ in K4.
+                                               rewrite <- K4 in inv.
+                                               inversion inv.
+                                               assert (refL = 1);
+                                                 [ omega | auto ].
+                               ---- assert (~ refD > m r).
+                                    intro Q.
+                                    apply Nat.ltb_lt in Q.
+                                    rewrite -> mref in Q.
+                                    inversion Q.
+                                    omega.
+                       *** rewrite <- iseq.
+                           auto.
+           ** apply insert_spec.
+              apply NatPairCmp_cmp.
+              apply or_intror.
+              apply rsp.
+              split.
+              auto.
+              split.
+              auto.
+              split.
+              omega.
+              auto.
+        -- intros phi.
+           apply insert_spec in phi.
+           destruct phi as [phi1 | phi2].
+           ** inversion phi1.
+              assert (refD >= 1).
+              +++ inversion K as [Q | x l Q all xl].
+                  --- rewrite <- Q in inv.
+                      discriminate.
+                  --- inversion Q as [a B| a b c d e f g].
+                      *** rewrite <- B in xl.
+                          rewrite <- xl in inv.
+                          discriminate.
+                      *** idtac.
+                          rewrite <- g in xl.
+                          rewrite <- xl in inv.
+                          inversion inv.
+                          omega.
+              +++ assert (m r >= refD).
+                  apply Nat.ltb_ge.
+                  auto.
+                  assert (D r > refD).
+                  apply Nat.leb_gt.
+                  auto.
+                  split.
+                  --- destruct (mn _ _ _ _ rsp) as [mn1 | [mn2 | mn3]].
+                      *** omega. 
+                      *** omega.
+                      *** idtac.
+                          rewrite -> (l_m_inv _ _ _ _ rsp) in inv.
+                          rewrite -> mn3 in inv.
+                          rewrite -> drop_ll in inv.
+                          discriminate.
+                  --- split.
+                      *** omega.
+                      *** split.
+                          ++++ omega.
+                          ++++ split.
+                               ---- omega.
+                               ---- rewrite <- drop_nth_error.
+                                    rewrite <- (l_m_inv _ _ _ _ rsp).
+                                    rewrite -> inv.
+                                    simpl.
+                                    f_equal.
+                                    f_equal.
+                                    replace (m r - (m r - refD))
+                                    with refD; [|omega].
+                                    replace refL with 1; [reflexivity |].
+                                    inversion K as [Q|Q R S T U].
+                                    **** rewrite <- Q in inv.
+                                         discriminate.
+                                    **** inversion S as [c W | c W ? ? ? ? Y].
+                                         +++++ rewrite <- U in inv.
+                                               rewrite <- W in inv.
+                                               discriminate.
+                                         +++++ idtac.
+                                               rewrite <- Y in U.
+                                               rewrite <- U in inv.
+                                               inversion inv.
+                                               omega.
+           ** destruct (c_inv _ _ _ _ rsp o1 o2) as [L [M [N [O Q]]]]; [auto|].
+              split.
+              auto.
+              split.
+              auto.
+              split.
+              omega.
+              auto.
+           ** apply NatPairCmp_cmp.
+   - replace (m _) with (S (m r)).
+     replace (n _) with (n r).
+     replace (D _) with (D r).
+     destruct (mn _ _ _ _ rsp) as [? | [? | K]].
+     omega.
+     auto.
+     rewrite -> (l_m_inv _ _ _ _ rsp) in inv.
+     rewrite -> K in inv.
+     rewrite -> drop_ll in inv.
+     discriminate.
+     reflexivity.
+     reflexivity.
+     reflexivity.
+   - replace (n _) with (n r).
+     replace (m _) with (S (m r)).
+     replace (D _) with (D r).
+     destruct (phase _ _ _ _ rsp) as [[p1a p1b] | [[p2a p2b] | phase3 ]].
+     ++ destruct (eq_nat_dec (S (m r)) (ll i)) as [e | e].
+        -- auto.
+        -- destruct (lt_dec (S (m r) - n r) (D r)).
+           ** apply or_introl.
+              auto.
+           ** apply or_intror.
+              apply or_introl.
+              split.
+              +++ trivial.
+              +++ omega.
+     ++ destruct (eq_nat_dec (S (m r)) (ll i)) as [e | e].
+        ** auto.
+        ** apply or_intror.
+           apply or_introl.
+           split.
+           +++ exact e.
+           +++ omega.
+     ++ rewrite -> (l_m_inv _ _ _ _ rsp) in inv.
+        rewrite -> phase3 in inv.
+        rewrite -> drop_ll in inv.
+        discriminate.
+     ++ reflexivity.
+     ++ reflexivity.
+     ++ reflexivity.
+Qed.
+
+
 
 Fixpoint ReadAhead {A : Set} (n maxdist : nat) (swbr : SequenceWithBackRefs A) (php : pheap (nat * nat)) :=
   match maxdist with
@@ -938,8 +1399,8 @@ Proof.
   exact q.
 Qed.  
 
-Definition pointsTo {A} (input : SequenceWithBackRefs A) (src dst : nat) :=
-  src < dst /\ nth_error input dst = Some (inr (1, dst - src)).
+
+(* TODOOOOO : pointsTo geaendert *)
 
 Lemma pointsTo_bound
 : forall {A} (input : SequenceWithBackRefs A) src dst,
@@ -948,18 +1409,6 @@ Proof.
   intros A input src dst [p0 p1].
   eapply nth_error_lt.
   exact p1.
-Qed.
-
-Lemma pointsTo_dst_unique
-: forall {A} (input : SequenceWithBackRefs A) (src1 src2 dst : nat),
-    pointsTo input src1 dst -> pointsTo input src2 dst -> src1 = src2.
-Proof.
-  intros A input src1 src2 dst pto1 pto2.
-  destruct pto1 as [pto1a pto1b].
-  destruct pto2 as [pto2a pto2b].
-  rewrite -> pto2b in pto1b.
-  inversion pto1b.
-  omega.
 Qed.
 
 Lemma drop_nil : forall {A} m (l : list A), [] = drop_ m l -> m >= ll l.

@@ -319,7 +319,7 @@ Proof.
   apply OneBitStrongDec.
 Defined.
 
-Lemma nBitsVecStongDecStrongUnique : forall n, StrongDec (nBitsVec n) * StrongUnique (nBitsVec n).
+Lemma nBitsVecStrongDecStrongUnique : forall n, StrongDec (nBitsVec n) * StrongUnique (nBitsVec n).
 Proof.
   intro n.
   split.
@@ -362,16 +362,16 @@ Lemma OneByteStrongDecStrongUnique : StrongDec OneByte * StrongUnique OneByte.
 Proof.
   split.
   apply CombineStrongDecStrongUnique.
-  apply nBitsVecStongDecStrongUnique.
-  apply nBitsVecStongDecStrongUnique.
+  apply nBitsVecStrongDecStrongUnique.
+  apply nBitsVecStrongDecStrongUnique.
   intro q.
   split.
   apply nullStrongUnique.
   apply nullStrongDec.
 
   apply CombineStrongDecStrongUnique.
-  apply nBitsVecStongDecStrongUnique.
-  apply nBitsVecStongDecStrongUnique.
+  apply nBitsVecStrongDecStrongUnique.
+  apply nBitsVecStrongDecStrongUnique.
   intro q.
   split.
   apply nullStrongUnique.

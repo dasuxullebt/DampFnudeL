@@ -317,12 +317,14 @@ Proof.
   destruct R as [? [? [? [? [q ?]]]]].
   exact q.
 Defined.
-
+				     
+(* APPCOMBINE1 *)
 Definition AppCombine {A BQ BR : Set }
   (Q : BQ -> list A -> Prop)
   (f : BQ -> BR) : BR -> list A -> Prop :=
   Combine Q (fun n (m : unit) L => m = () /\ L = @nil A)
             (fun a b => f a).
+(* APPCOMBINE2 *)
 
 Lemma AppCombineF : forall
                       {A BQ BR : Set}
@@ -337,3 +339,213 @@ Proof.
   auto.
   apply app_nil_r.
 Qed.
+
+Definition StreamableStrongDec {A B} E (R : A -> list B -> Prop) :=
+  forall (l : list B),
+    { a : A &
+    { l' : list B &
+    { l'' : list B &
+    { e : option E |
+      l = l' ++ l'' /\
+      (e = None -> R a l') /\
+      (e <> None -> forall b k' k'',
+          l = k' ++ k'' -> R b k' -> False)}}}}.
+
+Theorem nTimesStreamableStrongDecStrongUnique
+  : forall {A B C E} (null : C) (comb : A -> C -> C)
+           (R : A -> list B -> Prop),
+    StrongUnique R -> StreamableStrongDec E R ->
+    forall n, (StreamableStrongDec E (nTimes n null comb R) *
+               StrongUnique (nTimes n null comb R)).
+Proof.
+  intros A B C E null comp R su ssd.
+  induction n as [|n IHn].
+  + split.
+    - simpl.
+      exists null.
+      exists (@nil B).
+      exists l.
+      exists (@None E).
+      auto.
+    - intros a b la las lb lbs apps [nta ntla] [ntb ntlb].
+      rewrite -> ntb.
+      rewrite -> ntlb.
+      auto.
+  + destruct IHn as [IHnssd IHnsu].
+    split.
+    - simpl.
+      intros l.
+      destruct (ssd l) as [a1 [l'1 [l''1 [e1 [lapp1 [noneimp1 excimp1]]]]]].
+      destruct (IHnssd l''1)as [a2 [l'2 [l''2 [e2 [lapp2 [noneimp2 excimp2]]]]]].
+      exists (comp a1 a2).
+      exists (l'1 ++ l'2).
+      exists l''2.
+      assert(K : l = (l'1 ++ l'2) ++ l''2).
+      * rewrite <- app_assoc.
+        rewrite <- lapp2.
+        auto.
+      * destruct e1 as [|xe1] eqn:e1eq.
+        ++ exists e1.
+           split.
+           -- exact K.
+           -- split.
+              ** intro Q.
+                 rewrite -> e1eq in Q.
+                 discriminate.
+              ** intros Q b k' k'' kapp rel.
+                 inversion rel.
+                 eapply excimp1.
+                 intro k. discriminate.
+                 match goal with
+                 | X : _ ++ _ = k' |- _ => rewrite <- X in kapp
+                 end.
+                 rewrite <- app_assoc in kapp.
+                 exact kapp.
+                 eauto.
+        ++ destruct e2 as [|xe2] eqn:e2eq.
+           exists e2.
+           split.
+           -- exact K.
+           -- split.
+              ** intro q.
+                 rewrite -> e2eq in q.
+                 discriminate.
+              ** intros q b k' k'' kapp rel.
+                 inversion rel.
+                 eapply (excimp2 _ _ _ k'' _).
+                 eauto.
+           -- exists None.
+              split.
+              exact K.
+              split.
+              intro q.
+              constructor; auto.
+              intro q.
+              contradict q.
+              reflexivity.
+    - intros a b la las lb lbs apps nta ntb.
+      destruct nta.
+      destruct ntb.
+      rewrite <- app_assoc in apps.
+      rewrite <- app_assoc in apps.
+      edestruct su as [X Y].
+      exact apps.
+      eauto.
+      eauto.
+      rewrite -> X.
+      rewrite -> Y.
+      rewrite -> Y in apps.
+      destruct (app_ll _ _ _ _ apps) as [? K]; [reflexivity|].
+      edestruct IHnsu as [L M].
+      exact K.
+      eauto.
+      eauto.
+      rewrite -> L.
+      rewrite -> M.
+      auto.
+
+Grab Existential Variables.
+match goal with
+| X : _ ++ _ = k' |- _ => rewrite <- X in kapp
+end.
+rewrite <- app_assoc in kapp.
+edestruct su.
+rewrite -> lapp1 in kapp.
+exact kapp.
+eauto.
+eauto.
+eapply app_ll.
+rewrite <- lapp1.
+eauto.
+f_equal.
+auto.
+
+intro z; discriminate.
+Qed.
+
+(* Inductive EStrDecSingle {A B EA EB : Set} *)
+(*           (ma : MaybeErr A EA) *)
+(*           (R : A -> list B -> Prop) *)
+(*           (l : EList B EB) *)
+(*           (a : EA) (l' l'' : list B) : Prop := *)
+(* | EInputError : err ma a -> EErr l -> EStrDecSingle ma R l a l' l'' *)
+(* | EFormatError : forall (nerrB : ~ EErr l), *)
+(*     err ma a -> *)
+(*     (forall b k' k'', EtoL _ nerrB = k' ++ k'' -> R b k' -> False) -> *)
+(*     EStrDecSingle ma R l a l' l'' *)
+(* | ESuccess : forall (nerrA : ~ err ma a) (nerrB : ~ EErr l), *)
+(*     EtoL _ nerrB = l' ++ l'' -> R (extract _ _ nerrA) l' -> *)
+(*     EStrDecSingle ma R l a l' l''. *)
+
+(* Definition StreamableStrongDec {A B EA EB : Set} *)
+(*            (ma : MaybeErr A EA) *)
+(*            (R : A -> list B -> Prop) := *)
+(*   forall (l : EList B EB), *)
+(*     {a : EA & { l' : list B & { l'' | EStrDecSingle ma R l a l' l''}}}. *)
+
+(* Definition StreamableStrongDec {A B} *)
+(*            (E : A -> Prop) (R : A -> list B -> Prop) := *)
+(*   forall (l : list B), *)
+(*     {a : A & { l' : list B & *)
+(*                     { l'' | (~ E a) /\ l = l' ++ l'' /\ R a l'} + *)
+(*                     (E a /\ ~ exists b l' l'', *)
+(*                          l = l' ++ l'' /\ R b l')}}%type. *)
+
+(* Definition EtoStr {A} (E : A -> Prop) := forall a, E a -> string. *)
+
+(* Definition StrToE {A} (E : A -> Prop) := *)
+(*   forall (str : string), {a | E a}. *)
+                                                    
+(* Lemma StreamableImpStrong : *)
+(*   forall {A B} (E : A -> Prop) (O : EtoStr E) (R : A -> list B -> Prop), *)
+(*     StreamableStrongDec E R -> StrongDec R. *)
+(* Proof. *)
+(*   intros A B E O R ssd l. *)
+(*   destruct (ssd l) as [a [l' lx]]. *)
+(*   destruct lx as [[l'' lx] | [ea lx]]. *)
+(*   + apply inl. *)
+(*     exists a. *)
+(*     exists l'. *)
+(*     exists l''. *)
+(*     firstorder. *)
+(*   + apply inr. *)
+(*     split. *)
+(*     - exact (O a ea). *)
+(*     - intros [a0 [l'0 [l''0 [lx0 lx1]]]]. *)
+(*       contradict lx. *)
+(*       exists a0. *)
+(*       exists l'0. *)
+(*       exists l''0. *)
+(*       auto. *)
+(* Qed. *)
+
+(* Lemma StrongImpStreamable : *)
+(*   forall {A B} (E : A -> Prop) (O : StrToE E) (R : A -> list B -> Prop), *)
+(*     (forall a l, E a -> ~ R a l) -> *)
+(*     StrongDec R -> StreamableStrongDec E R. *)
+(* Proof. *)
+(*   intros A B E O R corr sd l. *)
+(*   destruct (sd l) as [[a [l' [l'' [lapp ral]]]] | [str no]]. *)
+(*   + exists a. *)
+(*     exists l'. *)
+(*     apply inl. *)
+(*     exists l''. *)
+(*     split. *)
+(*     - intro Q. *)
+(*       eapply corr. *)
+(*       exact Q. *)
+(*       exact ral. *)
+(*     - auto. *)
+(*   + destruct (O str) as [a e]. *)
+(*     exists a. *)
+(*     exists []. *)
+(*     apply inr. *)
+(*     split. *)
+(*     - exact e. *)
+(*     - intros [b [l' [l'' [lapp rbl]]]]. *)
+(*       contradict no. *)
+(*       exists b. *)
+(*       exists l'. *)
+(*       exists l''. *)
+(*       auto. *)
+(* Qed. *)

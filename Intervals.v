@@ -1,5 +1,5 @@
 Require Import List.
-Require Import BinNat.
+Require Import Coq.NArith.BinNat.
 Require Import Shorthand.
 Require Import Program.
 Require Import Omega.

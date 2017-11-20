@@ -332,7 +332,7 @@ Proof.
                 | (x :: r) =>
                   match n as m return (n = m -> _) with
                       | 0%nat => fun eq => _
-                      | (S n) => fun eq => _
+                      | (S n_) => fun eq => _
                   end eq_refl
             end eq_refl).
   exists (repeat n false).
@@ -345,12 +345,12 @@ Proof.
   apply nnil_lex.
   intros deq.
   rewrite deq.
-  assert (lx' : lex (x :: r) (repeat (S n0) false)).
+  assert (lx' : lex (x :: r) (repeat (S n_) false)).
   rewrite <- deq.
   rewrite <- eq.
   auto.
   inversion lx'.
-  assert (pref : prefix r (repeat n0 false)).
+  assert (pref : prefix r (repeat n_ false)).
   apply f.
   auto.
   elim pref.
@@ -425,91 +425,107 @@ Proof.
   auto.
 Qed.
 
+(* Check bool_dec. *)
+
+(* Lemma max_common_prefix : forall {A : Set} (eqdec : forall b1 b2 : A, {b1 = b2} + {b1 <> b2}) (a b : list A), *)
+(*     {c | (prefix c a) /\ (prefix c b) /\ forall d, prefix d a -> prefix d b -> prefix d c }. *)
+(* Proof. *)
+(*   intros A a b. *)
+  
 
 (* TODO: geht allgemeiner *)
-Lemma max_common_prefix : forall (a b : LB), {c | (prefix c a) /\ (prefix c b) /\
-                                                  forall d, prefix d a -> prefix d b -> prefix d c}.
-Proof.
-  intros aq bq.
-  refine ((fix f a b := 
-            match a as A return (a = A -> _) with
-                | nil => fun eq => _
-                | (xa :: a') =>
-                  fun eq =>
-                  match b as B return (b = B -> _) with
-                      | nil => fun eq2 => _
-                      | (xb :: b') => fun eq2 => _
-                  end eq_refl
-            end eq_refl) aq bq).
-exists Bnil.
-split.
-exists Bnil.
-auto.
-split.
-exists b.
-auto.
-intros d pb db.
-apply pb.
-exists Bnil.
-split.
-exists (xa :: a').
-auto.
-split.
-exists Bnil.
-auto.
-intros d da db.
-apply db.
-elim (bool_dec xa xb).
-intros xa_eq_xb.
-elim (f a' b').
-intros x x_ex.
-elim x_ex.
-intros xa' xex2.
-elim xex2.
-intros xb' xex3.
-exists (xb :: x).
-split.
-rewrite -> xa_eq_xb.
-apply prefix_cons.
-apply xa'.
-split.
-apply prefix_cons.
-apply xb'.
-intros d.
-destruct d.
-intros _ _.
-exists (xb :: x).
-auto.
-intros pda pdb.
-inversion pdb.
-inversion H.
-apply prefix_cons.
-apply xex3.
-apply (prefix_cdr b0 xa).
-apply pda.
-apply (prefix_cdr b0 xb).
-apply pdb.
-exists Bnil.
-split.
-exists (xa :: a').
-auto.
-split.
-exists (xb :: b').
-auto.
-intros d.
-intros pda pdb.
-induction d.
-exists Bnil.
-auto.
-inversion pda.
-inversion H.
-inversion pdb.
-inversion H0.
-rewrite <- H4 in b0.
-rewrite <- H1 in b0.
-contradict b0.
-reflexivity.
-Qed.
+(* Lemma max_common_prefix : forall (a b : LB), {c | (prefix c a) /\ (prefix c b) /\ *)
+(*                                                   forall d, prefix d a -> prefix d b -> prefix d c}. *)
+(* Proof. *)
+(*   intros aq bq. *)
+(*   refine ((fix f a b :=  *)
+(*             match a as A return (a = A -> _) with *)
+(*                 | nil => fun eq => _ *)
+(*                 | (xa :: a') => *)
+(*                   fun eq => *)
+(*                   match b as B return (b = B -> _) with *)
+(*                       | nil => fun eq2 => _ *)
+(*                       | (xb :: b') => fun eq2 => _ *)
+(*                   end eq_refl *)
+(*             end eq_refl) aq bq). *)
+(* exists Bnil. *)
+(* split. *)
+(* exists Bnil. *)
+(* auto. *)
+(* split. *)
+(* exists b. *)
+(* auto. *)
+(* intros d pb db. *)
+(* apply pb. *)
+(* exists Bnil. *)
+(* split. *)
+(* exists (xa :: a'). *)
+(* auto. *)
+(* split. *)
+(* exists Bnil. *)
+(* auto. *)
+
+(* intros d da db. *)
+(* match goal with *)
+(* | X : prefix d b, Y : b = Bnil |- prefix d Bnil => rewrite -> Y in X *)
+(* | _ => idtac *)
+(* end. *)
+(* apply db. *)
+(* elim (bool_dec xa xb). *)
+(* intros xa_eq_xb. *)
+(* elim (f a' b'). *)
+(* intros x x_ex. *)
+(* elim x_ex. *)
+(* intros xa' xex2. *)
+(* elim xex2. *)
+(* intros xb' xex3. *)
+(* exists (xb :: x). *)
+(* split. *)
+(* rewrite -> xa_eq_xb. *)
+(* apply prefix_cons. *)
+(* apply xa'. *)
+(* split. *)
+(* match goal with *)
+(* | |- prefix _ b => rewrite -> eq2 *)
+(* | _ => idtac *)
+(* end. *)
+(* apply prefix_cons. *)
+(* apply xb'. *)
+(* intros d. *)
+(* destruct d. *)
+(* intros _ _. *)
+(* exists (xb :: x). *)
+(* auto. *)
+(* intros pda pdb. *)
+(* inversion pdb *)
+(* inversion H. *)
+(* apply prefix_cons. *)
+(* apply xex3. *)
+(* apply (prefix_cdr b0 xa). *)
+(* apply pda. *)
+(* apply (prefix_cdr b0 xb). *)
+(* apply pdb. *)
+(* exists Bnil. *)
+(* split. *)
+(* exists (xa :: a'). *)
+(* auto. *)
+(* split. *)
+(* exists (xb :: b'). *)
+(* auto. *)
+(* intros d. *)
+(* intros pda pdb. *)
+(* induction d. *)
+(* exists Bnil. *)
+(* auto. *)
+(* inversion pda. *)
+(* inversion H. *)
+(* inversion pdb. *)
+(* inversion H0. *)
+(* rewrite <- H4 in b0. *)
+(* rewrite <- H1 in b0. *)
+(* contradict b0. *)
+(* reflexivity. *)
+(* Qed. *)
 
 Lemma repeat_forall : forall {A} n (Q : A -> Prop) a,
                         Q a -> Forall Q (repeat n a).

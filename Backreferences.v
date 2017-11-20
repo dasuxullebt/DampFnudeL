@@ -2,6 +2,10 @@ Require Import Coq.Numbers.Natural.Peano.NPeano.
 Require Import Coq.Lists.List.
 Require Import Omega.
 Require Import Program.
+
+(* version 8.7:
+Require Import FunInd. *)
+
 Import ListNotations.
 
 Require Import Combi.
@@ -9,7 +13,6 @@ Require Import Shorthand.
 Require Import LSB.
 Require Import String.
 Require Import Repeat.
-Require Import ArrayInduction.
 
 (** A list with backreferences. Every element is either a direct byte,
 or a pair of numbers, the first component being the length, the second
@@ -46,12 +49,6 @@ Proof.
   omega.
 Qed.
 
-(* NTHLAST1 *)				     
-Inductive nthLast {A : Set}
- : forall (n : nat) (L : list A) (a : A), Prop :=
-| makeNthLast : forall L M a, nthLast (ll (a :: M)) (L ++ a :: M) a.
-(* NTHLAST2 *)
-				     
 (** Example *)
 Goal nthLast 1 [0; 1; 2] 2.
 Proof.
@@ -782,16 +779,18 @@ Proof.
     rewrite -> app_nil_r.
     rewrite -> repeat_map.
     apply BackRefsLengthOneCorrect'.
-    destruct (app_ll_r _ _ _ _ H).
+    match goal with
+    | X : _ ++ _ = _ ++ _ |- _ => destruct (app_ll_r _ _ _ _ X)
+    end.
     reflexivity.
   
     econstructor.
     rewrite -> H3. (* TODO *)
     apply IHc.
     rewrite <- H3.
-    apply H0.
+    eauto.
     trivial.
-Qed.
+Qed.    
 
 Fixpoint BackRefsLengthOne_ {A : Set}
          (swbr : SequenceWithBackRefs A) :=
@@ -986,7 +985,8 @@ Proof.
   rewrite <- app_comm_cons.
   reflexivity.
 
-  exists (L ++ X :: M) (@nil a).
+  exists (L ++ X :: M).
+  exists (@nil a).
   split.
   assert (ll output = S (ll (L ++ a0 :: M))).
   rewrite <- H5.
@@ -1039,7 +1039,8 @@ Proof.
   exact H0.
   
   apply (proj2 (nth_split _ _ _)).
-  exists o' l.
+  exists o'.
+  exists l.
   split.
   trivial.
   symmetry.
@@ -1121,7 +1122,8 @@ Proof.
   trivial.
 
   apply (proj2 (nth_split _ _ _)).
-  exists o' l.
+  exists o'.
+  exists l.
   split.
   trivial.
   symmetry.
@@ -1566,14 +1568,6 @@ Proof.
   eauto.
 Qed.
 
-Definition F {A : Set} (a : ListArray (A + (nat * nat))%type) (n : nat) :=
-  { m : option A |
-    forall (mnd mxd : nat) (k : SequenceWithBackRefs A) (l : list A),
-      a = l2a k ->
-      BackRefsBounded 1 1 (S mnd) mxd k ->
-      ResolveBackReferences k l ->
-      m = nth_error l n }.
-
 (* TODO: Woanders *)
 Lemma nth_error_none :
   forall {A : Set} (l : list A) n,
@@ -1611,73 +1605,6 @@ Proof.
   simpl in nll.
   omega.  
 Qed.  
-
-Lemma F_rec : forall {A : Set} (a : ListArray (A + (nat * nat))%type),
-    (forall (n:nat), (forall (m:nat), m<n -> F a m )->F a n).
-Proof.
-  unfold F.
-  intros A a n rec.
-  destruct (anth_error a n) as [[byte | [l d]] | no] eqn:anerr.
-  + exists (Some byte).
-    intros mnd mxd k l B C D.
-    symmetry.
-    eapply BackRefLemma2.
-    eauto.
-    eauto.
-    rewrite -> B in anerr.
-    rewrite -> anth_nth in anerr.
-    auto.
-  + destruct (le_dec d n).
-    - destruct (le_dec 1 d).
-      destruct (rec (n - d)) as [x e].
-      omega.
-      exists x.
-      intros mnd mxd k l2 B C D.
-      erewrite -> BackRefLemma.
-      eapply e.
-      eauto.
-      eauto.
-      trivial.
-      eauto.
-      trivial.
-      rewrite -> B in anerr.
-      rewrite -> anth_nth in anerr.
-      assert (K : l = 1).
-      eapply BackRefsBoundedLemma.
-      exact C.
-      exact anerr.
-      rewrite <- K.
-      trivial.
-      assert (K : d = 0).
-      omega.
-      exists (@None A).
-      intros mnd mxd k l1 al brb rbr.
-      rewrite -> al in anerr.
-      rewrite -> anth_nth in anerr.
-      eapply (BackRefsBoundedLemma2 _ _ _ (S mnd) mxd) in anerr.
-      omega.
-      exact brb.
-    - exists (@None A).
-      intros mnd mxd k l0 al brb rbr.
-      rewrite -> al in anerr.
-      rewrite -> anth_nth in anerr.
-      eapply (BackRefLemma3 _ _ _ _ _ _ _ rbr) in anerr.
-      omega.
-      eauto.
-  + exists (@None A).
-    intros mnd mxd k l al brb rbr.
-    assert (K : ll k = ll l).
-    eapply BackRefsLengthOneLength.
-    exact brb.
-    exact rbr.
-    rewrite -> al in anerr.
-    rewrite anth_nth in anerr.
-    apply nth_error_none in anerr.
-    rewrite -> K in anerr.
-    symmetry.
-    apply nth_error_none.
-    exact anerr.
-Qed.
   
 Fixpoint correctSWBR1 {A : Set}
          (n : nat) (swbr : SequenceWithBackRefs A) : bool :=
@@ -1782,7 +1709,7 @@ Proof.
   omega.
   destruct KM as [K M].
   
-  destruct (nth_error L (ll L - dist)) as [isthere | isnthere] eqn:isq.
+  destruct (nth_error L (ll L - dist)) as [isthere |] eqn:isq.
   
   exists (L ++ [isthere]).
   econstructor.
@@ -1935,27 +1862,6 @@ Proof.
   intros.
   apply proj2_sig.
 Qed.
-
-Lemma F_rec_correct :
-  forall {A : Set} (C : SequenceWithBackRefs A) (D : list A) mnd mxd n (lln : n < ll C),
-    BackRefsBounded 1 1 (S mnd) mxd C ->
-    ResolveBackReferences C D ->
-    proj1_sig (COV _ (F_rec (l2a C)) n) =
-    nth_error D n.
-Proof.  
-  intros A C D mnd mxd n lln brb rbr.
-  set (a := l2a C).
-  eapply proj2_sig.
-  
-  destruct (COV (F (l2a C)) (F_rec (l2a C)) n) as [x e] eqn:q.
-  unfold a.
-  exists x.
-  rewrite -> q.
-  eapply e.
-  reflexivity.
-  exact brb.  
-  exact rbr.
-Qed.
   
 Lemma funToList_correct :
   forall {A : Set} n m (f : nat -> A),
@@ -1972,39 +1878,39 @@ Proof.
   trivial.
 Qed.
 
-Theorem ResolveBackReferencesDec'
-  : forall {A : Set} (null : A) (input : SequenceWithBackRefs A) mnd mxd,
-    BackRefsBounded 1 1 (S mnd) mxd input -> 
-    {output | ResolveBackReferences input output} +
-    ({output | ResolveBackReferences input output} -> False).
-Proof.
-  intros A null input mnd mxd brb.
-  destruct (correctSWBR1 0 input) as [corr |] eqn:coreq.
-  assert (K : exists l, ResolveBackReferences input l);
-    [ eapply (swbr_correct_exists null); eauto | eauto ].
-  apply inl.  
-  set (D := l2a input).
-  set (len := ll input).
-  set (E := COV (F D) (F_rec D)).
-  set (F := fun n => proj1_sig (E n)).
-  set (G := funToList len F).
-  set (H := map (fun x => match x with
-                          | None => null
-                          | Some a => a
-                          end) G).
-  exists H.
-  destruct K as [xK kK].
-  set (I := F_rec_correct input H).
+(* Theorem ResolveBackReferencesDec' *)
+(*   : forall {A : Set} (null : A) (input : SequenceWithBackRefs A) mnd mxd, *)
+(*     BackRefsBounded 1 1 (S mnd) mxd input ->  *)
+(*     {output | ResolveBackReferences input output} + *)
+(*     ({output | ResolveBackReferences input output} -> False). *)
+(* Proof. *)
+(*   intros A null input mnd mxd brb. *)
+(*   destruct (correctSWBR1 0 input) as [corr |] eqn:coreq. *)
+(*   assert (K : exists l, ResolveBackReferences input l); *)
+(*     [ eapply (swbr_correct_exists null); eauto | eauto ]. *)
+(*   apply inl.   *)
+(*   set (D := l2a input). *)
+(*   set (len := ll input). *)
+(*   set (E := COV (F D) (F_rec D)). *)
+(*   set (F := fun n => proj1_sig (E n)). *)
+(*   set (G := funToList len F). *)
+(*   set (H := map (fun x => match x with *)
+(*                           | None => null *)
+(*                           | Some a => a *)
+(*                           end) G). *)
+(*   exists H. *)
+(*   destruct K as [xK kK]. *)
+(*   set (I := F_rec_correct input H). *)
 
-(************************************************************)
+(* (************************************************************) *)
   
-Function doResolution {A : Set} (B : SequenceWithBackRefs A)
-  : option (forall n, F (l2a (BackRefsLengthOne_ B)) n) :=
-  let C := BackRefsLengthOne_ B in
-  let LC := ll C in
-  let D := l2a C in
-  let E := COV (F D) (F_rec D) in
-  match correctSWBR1 0 C with
-  | false => None
-  | true => Some E
-  end.
+(* Function doResolution {A : Set} (B : SequenceWithBackRefs A) *)
+(*   : option (forall n, F (l2a (BackRefsLengthOne_ B)) n) := *)
+(*   let C := BackRefsLengthOne_ B in *)
+(*   let LC := ll C in *)
+(*   let D := l2a C in *)
+(*   let E := COV (F D) (F_rec D) in *)
+(*   match correctSWBR1 0 C with *)
+(*   | false => None *)
+(*   | true => Some E *)
+(*   end. *)

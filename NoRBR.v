@@ -9,6 +9,7 @@ Require Import Coq.Numbers.Natural.Peano.NPeano.
 Require Import Shorthand.
 Require Import Backreferences.
 Require Import EncodingRelationProperties.
+Require Import Extraction.
 
 Extraction Language Haskell.
 
@@ -75,6 +76,6 @@ Proof.
   apply (inr reason).
 Defined.
 
-Extraction "NoRBR/NoRBR.hs" DeflateNoRBR.
+Extraction "NoRBR" DeflateNoRBR.
 
 

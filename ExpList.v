@@ -3,18 +3,25 @@ Require Import EncodingRelationProperties.
 Require Import Shorthand.
 Require Import Backreferences.
 Require Import Combi.
+Require Import StrongDec.
+Require Import Extraction.
 
+Require Import Omega.
+Require Import Ascii.
+Require Import String.
 Require Import Coq.Arith.Compare_dec.
 Require Import Coq.Numbers.Natural.Peano.NPeano.
 Require Import Program.
 Require Import List.
 Import ListNotations.
 
+(* EXPLIST1 *)
 Inductive ExpList (A : Set) : Set :=
 | Enil : ExpList A
 | Econs1 : A -> ExpList (A * A) -> ExpList A
 | Econs2 : A -> A -> ExpList (A * A) -> ExpList A.
-
+(* EXPLIST2 *)
+				    
 Arguments Enil [_].
 Arguments Econs1 [_] _ _.
 Arguments Econs2 [_] _ _ _.
@@ -309,7 +316,7 @@ Inductive BufferedList (A : Set) (maxbuf : nat) : Set :=
                      (l : list A -> list A),
                      BufferedList A maxbuf.
 
-Arguments mkBufferedList [_] _ _ _ _ _.
+Arguments mkBufferedList [_] [_] _ _ _ _.
 
 Definition blCorrectL {A : Set} {maxbuf : nat} (bl : BufferedList A maxbuf) :=
   match bl with
@@ -327,7 +334,7 @@ Definition blCorrectB {A : Set} {maxbuf : nat} (bl : BufferedList A maxbuf) :=
   end.
 
 Definition nilBL (A : Set) (maxbuf : nat) : BufferedList A (S maxbuf) :=
-  mkBufferedList (S maxbuf) 0 Enil Enil (fun x => x).
+  @mkBufferedList A (S maxbuf) 0 Enil Enil (fun x => x).
 
 Lemma blclNil : forall {A : Set} {maxbuf : nat}, blCorrectL (nilBL A maxbuf).
 Proof.
@@ -347,8 +354,8 @@ Function pushBL {A : Set} {maxbuf : nat} (a : A) (bl : BufferedList A maxbuf) : 
   match bl with
     | mkBufferedList cbuf bb1 bb2 l =>
       match nat_compare cbuf maxbuf with
-        | Lt => mkBufferedList maxbuf (S cbuf) (Econs a bb1) bb2 l
-        | _ => mkBufferedList maxbuf 1 (Econs a Enil) bb1
+        | Lt => @mkBufferedList A maxbuf (S cbuf) (Econs a bb1) bb2 l
+        | _ => @mkBufferedList A maxbuf 1 (Econs a Enil) bb1
                               (fun x => l ((rev (EtoL bb2)) ++ x))
       end
   end.
@@ -472,6 +479,43 @@ Proof.
   repeat (rewrite -> app_assoc).
   rewrite -> app_nil_r.
   reflexivity.
+Qed.
+
+Fixpoint unThawBL_ {A : Set} {m} l : BufferedList A (S m) :=
+  match l with
+    | [] => nilBL A m
+    | x :: l_ => pushBL x (unThawBL_ l_)
+  end.
+
+Function unThawBL {A : Set} {m} l : BufferedList A (S m) := unThawBL_ (rev l).
+
+Lemma thawUnThawCorrect : forall {A : Set} {m} l, blCorrectL (@unThawBL A m l).
+Proof.
+  intros A m.
+  apply (rev_ind (fun l => blCorrectL (unThawBL l))).
+  apply blclNil.
+  intros x l IHl.
+  unfold unThawBL.
+  rewrite -> rev_app_distr.
+  simpl.
+  apply blclPush.
+  exact IHl.
+Qed.
+
+Lemma thawUnThawBL : forall {A : Set} {m} l, l = thawBL (@unThawBL A m l).
+Proof.
+  intros A m.
+  apply (rev_ind (fun l => l = thawBL (unThawBL l))).
+  reflexivity.
+  intros x l IHl.
+  unfold unThawBL.
+  rewrite -> rev_app_distr.
+  simpl.
+  rewrite -> thawBLpush.
+  unfold unThawBL in IHl.
+  rewrite <- IHl.
+  reflexivity.
+  apply thawUnThawCorrect.
 Qed.
 
 Function nL {A : Set} {maxbuf : nat} (d : nat) (bl : BufferedList A maxbuf) (default : A) : A :=
@@ -932,6 +976,148 @@ Inductive BackRefsOk {A : Set} : SequenceWithBackRefs A -> Prop :=
 | BackRefsOkBr0 : forall d swbr, BackRefsOk swbr -> BackRefsOk (swbr ++ [inr (0, d)])
 | BackRefsOkBr : forall l d swbr, BackRefsOk swbr -> 0 < d -> d <= brlen swbr -> BackRefsOk (swbr ++ [inr (S l, d)]).
 
+Lemma BackRefsOkDec_ : forall {A : Set} (swbr1 swbr2 : SequenceWithBackRefs A),
+                         BackRefsOk (swbr1 ++ swbr2) -> BackRefsOk swbr1.
+Proof.
+  intros A swbr1 swbr2.
+  revert swbr2 swbr1.
+  apply (rev_ind (fun swbr2 => forall swbr1, BackRefsOk (swbr1 ++ swbr2) -> BackRefsOk swbr1)).
+
+  intro swbr1.
+  rewrite -> app_nil_r.
+  auto.
+
+  intros a swbr2 IH2 swbr1 ok.
+  rewrite -> app_assoc in ok.
+  destruct a as [a | [a b]].
+  apply IH2.
+  inversion ok as [B | B C D E | B C D E | B C D E F G H].
+  destruct (swbr1 ++ swbr2); inversion B.
+  apply app_ll_r in E.
+  destruct E as [E1 E2].
+  rewrite <- E1.
+  exact D.
+  reflexivity.
+
+  apply app_ll_r in E.
+  destruct E as [E1 E2].
+  inversion E2.
+  reflexivity.
+
+  apply app_ll_r in H.
+  destruct H as [H1 H2].
+  inversion H2.
+  reflexivity.
+
+  inversion ok as [B | B C D E | B C D E | B C D E F G H].
+  destruct (swbr1 ++ swbr2); inversion B.
+  apply app_ll_r in E.
+  destruct E as [E1 E2].
+  inversion E2.
+  reflexivity.
+
+  apply IH2.
+  apply app_ll_r in E.
+  destruct E as [E1 E2].
+  rewrite <- E1.
+  exact D.
+  reflexivity.
+
+  apply IH2.
+  apply app_ll_r in H.
+  destruct H as [H1 H2].
+  rewrite <- H1.
+  exact E.
+  reflexivity.
+Qed.
+
+Lemma BackRefsOkDec : forall {A : Set} (swbr : SequenceWithBackRefs A),
+                        BackRefsOk swbr + ~ BackRefsOk swbr.
+Proof.
+  intros A swbr.
+  refine ((fix f todo done n
+               (inv1 : n = brlen done)
+               (inv2 : BackRefsOk done)
+           : BackRefsOk (done ++ todo) + ~ BackRefsOk (done ++ todo)
+           := _) swbr [] 0 _ _).
+  destruct todo as [|t todo].
+  rewrite -> app_nil_r.
+  apply inl.
+  exact inv2.
+
+  replace (done ++ t :: todo) with (done ++ [t] ++ todo).
+  rewrite -> app_assoc.
+  destruct t as [t | [l d]].
+  apply (f _ _ (S n)).
+  rewrite -> app_brlen.
+  simpl.
+  omega.
+  constructor.
+  exact inv2.
+
+  destruct l.
+  apply (f _ _ n).
+  rewrite -> app_brlen.
+  simpl.
+  omega.
+  constructor.
+  exact inv2.
+
+  destruct (lt_dec 0 d) as [l0d | g0d].
+  destruct (le_dec d n) as [ldn | gdn].
+  apply (f _ _ (n + S l)).
+  rewrite -> app_brlen.
+  simpl.
+  omega.
+  constructor.
+  exact inv2.
+  exact l0d.
+  omega.
+
+  apply inr.
+  intro Q.
+  apply BackRefsOkDec_ in Q.
+  inversion Q as [B | B C D E | B C D E | B C D E F G H].
+  destruct done; inversion B.
+  apply app_ll_r in E.
+  destruct E as [E1 E2].
+  inversion E2.
+  reflexivity.
+  apply app_ll_r in E.
+  destruct E as [E1 E2].
+  inversion E2.
+  reflexivity.
+  apply app_ll_r in H.
+  destruct H as [H1 H2].
+  inversion H2.
+  rewrite -> H1 in G.
+  omega.
+  reflexivity.
+
+  apply inr.
+  intro Q.
+  apply BackRefsOkDec_ in Q.
+  inversion Q as [B | B C D E | B C D E | B C D E F G H].
+  destruct done; inversion B.
+  apply app_ll_r in E.
+  destruct E as [E1 E2].
+  inversion E2.
+  reflexivity.
+  apply app_ll_r in E.
+  destruct E as [E1 E2].
+  inversion E2.
+  reflexivity.
+  apply app_ll_r in H.
+  destruct H as [H1 H2].
+  inversion H2.
+  omega.
+  reflexivity.
+
+  reflexivity.
+  reflexivity.
+  constructor.
+Defined.
+
 Lemma RBR_Ok : forall {A} swbr l, @ResolveBackReferences A swbr l -> BackRefsOk swbr.
 Proof.
   intros A swbr l rbr;
@@ -1232,81 +1418,74 @@ Proof.
   apply blcbNil.
 Qed.
 
-Definition ReadOneBlockAndPad (n : nat) (l : LB) : option (nat * (SequenceWithBackRefs Byte) * LB).
+(* TODO: elsewhere *)
+Lemma byte_eq_dec : forall (x y : Byte), {x = y} + {x <> y}.
 Proof.
-  destruct (OneBlockWithPaddingStrongDec n l) as [[a [l' [l'' ?]]]|no].
-  apply Some.
-  split.
-  split.
-  apply (n + ll l').
-  apply a.
-  apply l''.
-  apply None.
+  intros x y.
+  destruct (vec_eq_dec x y Bool.bool_dec); auto.
 Defined.
 
-Lemma ROBAP : 
-  forall n l m swbr lr,
-    ReadOneBlockAndPad n l = Some (m, swbr, lr) ->
-    ll lr < ll l.
+Lemma DeflateStrongDec : StrongDec DeflateEncodes.
 Proof.
-  intros n l m swbr lr.
-  unfold ReadOneBlockAndPad.
-  destruct (OneBlockWithPaddingStrongDec n l) eqn:?.  
-  destruct s.
-  destruct s.
-  destruct s.
-  intro Q.
-  inversion Q.
-  destruct a.
-  rewrite -> e.
-  rewrite -> app_length.
-  rewrite -> H2.
-  inversion o.
-  simpl.
-  omega.
-  simpl.
-  omega.
-  simpl.
-  omega.
-  intro Q.
-  inversion Q.
-Qed.
+  intro l.
+  destruct (ManyBlocksStrongDec 0 l) as [[swbr [l' [l'' [lapp mb]]]] | [reason no]].
+  destruct (BackRefsOkDec swbr) as [brok | brnok].
+  apply inl.
+  exists (thawBL (@BackRefs Byte (d"32768") swbr (nilBL _ _) (Bvector.Bvect_false _))).
+  exists l'.
+  exists l''.
+  split.
+  exact lapp.
+  econstructor 1.
+  exact mb.
+  assert (brb : BackRefsBounded (S 2) 258 (S 0) (S (d"32767")) swbr).
+  eapply ManyBlocksBounded.
+  exact mb.
+  apply (BackRefsCorrect byte_eq_dec _ _ _ _ swbr (Bvector.Bvect_false _) _ brb).
+  split.
+  exact brok.
+  reflexivity.
 
-Program Fixpoint ReadManyBlocks (n : nat) (l : LB) {measure (ll l)} : (bool * SequenceWithBackRefs Byte) :=
-  match l with
-    | [] => (false, [])
-    | (endb :: l') =>
-      match ReadOneBlockAndPad n l' with
-        | Some (m, b, l'') => 
-          match endb with
-            | true => (true, b)
-            | false => match ReadManyBlocks m l'' with
-                         | (false, q) => (false, b ++ q)
-                         | (true, q) => (true, b ++ q)
-                       end
-          end
-        | None => (false, [])
-      end
-  end.
-Next Obligation.
-Proof.
-  assert (lb l'' < lb l').
-  eapply ROBAP.
-  symmetry.
+  apply inr.
+  split.
+  exact "Backreference beyond the big bang."%string.
+  intros [a [l'0 [l''0 [l'app denc]]]].
+  inversion denc as [swbr' mb' rbr'].
+  contradict brnok.
+  eapply BackRefsCorrect.
+  exact byte_eq_dec.
+  exact (Bvector.Bvect_false _).
+  eapply ManyBlocksBounded.
+  exact mb.
+  erewrite -> thawUnThawBL in rbr'.
+  rewrite -> lapp in l'app.
+  destruct (ManyBlocksStrongUnique 0 swbr swbr' l' l'' l'0 l''0 l'app mb mb') as [K1 K2].
+  rewrite <- K1 in rbr'.
+  exact rbr'.
+
+  apply inr.
+  split.
+  exact reason.
+  intros [a [l' [l'' [lapp de]]]].
+  inversion de.
+  contradict no.
+  eexists.
+  exists l'.
+  exists l''.
+  split.
+  trivial.
   eauto.
-  simpl.
-  omega.
 Qed.
 
-Functional Scheme ReadManyBlocks_ind := Induction for ReadManyBlocks Sort Prop.
-
-(* note that this is not fully verified yet, just for testing *)
-Definition DeflateTest (l : LB) :=
-  map Vector.to_list (thawBL (@BackRefs Byte (d"32768") (snd (ReadManyBlocks 0 l)) (nilBL _ _) (Bvector.Bvect_false _))).
-
-Definition DeflateTestNoBackRefs (l : LB) : SequenceWithBackRefs Byte.
+Definition EfficientDeflate (l : LB) : sum LByte string.
 Proof.
-  destruct (ManyBlocksStrongDec 0 l) as [[a ?] | no].
+  destruct (DeflateStrongDec l) as [[a ?] | [reason ?]].
+  apply inl.
   exact a.
-  exact [].
-Qed.
+  apply inr.
+  exact reason.
+Defined.
+
+
+Extraction "ExpList.hs" EfficientDeflate.
+

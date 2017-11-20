@@ -627,7 +627,7 @@ Proof.
   apply lenmax.
   elim xmax.
   intros max maxfall.
-  set (c := Vcons LB (repeat (S (S (ll (Vnth C0 max)))) true) (S m) C0).
+  set (c := Vcons (repeat (S (S (ll (Vnth C0 max)))) true) (S m) C0).
   assert (pfx : forall a b, a <> b -> ((Vnth c a) = nil) + ~ (prefix (Vnth c a) (Vnth c b))).
   intros a b neq.
   elim (list_eq_dec bool_dec (Vnth c a) nil).
@@ -1185,7 +1185,9 @@ Proof.
   auto.
 Defined.
 
-Lemma existence_lex_lemma : forall a m p, lex p m -> prefix a m -> ~ prefix a p -> lex p a.
+(* LXL1 *)
+Lemma existence_lex_lemma : forall a m p, lex p m -> prefix a m ->
+                                     ~ prefix a p -> lex p a.
 Proof.
   refine (fix f a m p :=
             match (a, m, p) as R return ((a, m, p) = R -> _) with
@@ -1194,11 +1196,12 @@ Proof.
               | (xa :: a', xm :: m', nil) => fun eq => _
               | (xa :: a', xm :: m', xp :: p') => fun eq => _
             end eq_refl).
+(* LXL2 *)
 inversion eq.
 intros _ _ npref.
 contradict npref.
-exists y.
-auto.
+eexists.
+apply app_nil_l.
 inversion eq.
 intros _ npref.
 inversion npref.
@@ -1279,28 +1282,27 @@ apply vfmo.
 
 destruct (nullCoding n) as [mdn allnil].
 
-(* TODO: Documentation *)
-refine ((fix complicated (R S L : list (fin n * nat))
+refine ((fix complicated (R0 S0 L0 : list (fin n * nat))
              x (xeq : x = f) (* TODO: Hack *)
-             (Lasc : forall m o, In (m, o) L <-> Vnth x m = o)
-             (sL : StronglySorted mys L)
-             (sR : StronglySorted mys R)
-             (sS : StronglySorted (fun x y => mys y x) S)
+             (Lasc0 : forall m o, In (m, o) L0 <-> Vnth x m = o)
+             (sL : StronglySorted mys L0)
+             (sR : StronglySorted mys R0)
+             (sS : StronglySorted (fun x y => mys y x) S0)
              (c : deflateCoding n)
              (inv1 : forall q,
-                       (~ In (q, ll (cd c q)) S) ->
-                       (cd c q = []) /\ In (q, Vnth x q) R)
-             (inv2 : L = (List.rev S) ++ R)
-             (inv3 : (S = nil) + (forall q, lex (cd c q) (cd c (fst (car (q, 0%nat) S)))))
+                       (~ In (q, ll (cd c q)) S0) ->
+                       (cd c q = []) /\ In (q, Vnth x q) R0)
+             (inv2 : L0 = (List.rev S0) ++ R0)
+             (inv3 : (S0 = nil) + (forall q, lex (cd c q) (cd c (fst (car (q, 0%nat) S0)))))
          := 
-           match R as R' return (R = R' -> _) with
+           match R0 as R' return (R0 = R' -> _) with
              | nil => fun eq => _
-             | (n, 0%nat) :: R' => fun eq => _
-             | (n, S m) :: R' => fun eq =>
-                                   match S as S' return (S = S' -> _) with
+             | (n0, 0%nat) :: R' => fun eq => _
+             | (n0, S m) :: R' => fun eq =>
+                                   match S0 as S' return (S0 = S' -> _) with
                                        | nil => fun eq2 => _
-                                       | (p, 0%nat) :: S'' => fun eq2 => _
-                                       | (p, S ms) :: S'' => fun eq2 => _
+                                       | (p1, 0%nat) :: S'' => fun eq2 => _
+                                       | (p1, S ms) :: S'' => fun eq2 => _
                                    end eq_refl
            end eq_refl) L [] L f eq_refl Lasc Lsorted Lsorted _ mdn _ _ _).
 
@@ -1344,13 +1346,13 @@ rewrite -> eq.
 rewrite app_nil_r.
 apply in_rev.
 rewrite rev_involutive.
-assert (dc:{In(p2,(Vnth(Vmap lb (C _ c))p2))S}+{~In(p2,(Vnth(Vmap lb (C _ c))p2))S}).
+assert (dc:{In(p2,(Vnth(Vmap lb (C _ c))p2))S0}+{~In(p2,(Vnth(Vmap lb (C _ c))p2))S0}).
 apply in_dec.
 apply fdec.
 elim dc.
 trivial.
 intros Q.
-assert (In (p2, Vnth x p2) R).
+assert (In (p2, Vnth x p2) R0).
 apply inv1.
 assert (H:Vnth (Vmap lb (C _ c)) p2 = ll (Vnth (C _ c) p2)).
 apply nth_map. reflexivity.
@@ -1371,21 +1373,23 @@ rewrite <- H.
 intros Q.
 inversion Q.
 assert (R'l : R' = l).
-apply (cons_inj(c:=a)(a:=(n0,0%nat))).
-rewrite -> H1.
-auto.
+eapply cons_inj.
+rewrite -> eq in H1.
+symmetry.
+apply H1.
+
 rewrite -> R'l.
 auto.
-assert (inv2' : L0 = (rev ((n0, 0%nat)::S)) ++ R').
+assert (inv2' : L0 = (rev ((n0, 0%nat)::S0)) ++ R').
 rewrite -> inv2.
 rewrite -> eq.
 symmetry.
 apply cons_rev.
 assert(inv1':forall q : fin n,
-               ~ In (q, ll (cd c q)) ((n0, 0%nat) :: S) ->
+               ~ In (q, ll (cd c q)) ((n0, 0%nat) :: S0) ->
                cd c q = Bnil /\ In (q, Vnth x q) R').
 intros q nin.
-assert (old : cd c q = Bnil /\ In (q, Vnth x q) R).
+assert (old : cd c q = Bnil /\ In (q, Vnth x q) R0).
 apply inv1.
 contradict nin.
 apply in_cons.
@@ -1404,25 +1408,25 @@ unfold ll.
 inversion H.
 apply in_eq.
 apply H.
-assert (sS' : StronglySorted (fun x y => mys y x) ((n0, 0%nat) :: S)).
+assert (sS' : StronglySorted (fun x y => mys y x) ((n0, 0%nat) :: S0)).
 apply (existence_sorting_S _ (n0,0%nat) R').
 rewrite <- inv2'.
 apply sL.
-assert (inv3' : (((n0, 0%nat) :: S = [ ]) +
+assert (inv3' : (((n0, 0%nat) :: S0 = []) +
                  (forall q : fin n,
                     lex (cd c q)
-                        (cd c (fst (car (q, 0%nat) ((n0, 0%nat) :: S))))))).
+                        (cd c (fst (car (q, 0%nat) ((n0, 0%nat) :: S0))))))).
 apply inr.
 intro q.
 assert (allnull : forall q : fin n, cd c q = Bnil).
 intros q0.
-assert (indec : {In (q0, ll (cd c q0)) S} + {~ In (q0, ll (cd c q0)) S}).
+assert (indec : {In (q0, ll (cd c q0)) S0} + {~ In (q0, ll (cd c q0)) S0}).
 apply in_dec.
 apply pair_dec.
 elim indec.
 intros inS.
 assert (mys (q0, ll (cd c q0)) (n0, 0%nat)).
-apply (existence_sorting_In _ S _ (fun x y => mys y x)).
+apply (existence_sorting_In _ S0 _ (fun x y => mys y x)).
 apply sS'.
 apply inS.
 inversion H.
@@ -1434,7 +1438,7 @@ apply inv1.
 apply ninS.
 rewrite -> allnull.
 apply nil_lex.
-apply (complicated R' ((n0, 0%nat)::S) L0 x xeq Lasc0 sL sR' sS' c inv1' inv2' inv3').
+apply (complicated R' ((n0, 0%nat)::S0) L0 x xeq Lasc0 sL sR' sS' c inv1' inv2' inv3').
 apply exD'.
 
 (* R = (n, Datatypes.S m) :: R', S = [ ] -- nasty side case *)
@@ -1632,7 +1636,7 @@ rewrite -> H1.
 auto.
 rewrite -> R'l.
 auto.
-assert (inv2' : L0 = (rev ((n0,Datatypes.S m)::S)) ++ R').
+assert (inv2' : L0 = (rev ((n0,Datatypes.S m)::S0)) ++ R').
 rewrite -> inv2.
 rewrite -> eq.
 symmetry.
@@ -1640,7 +1644,7 @@ apply cons_rev.
 set (C' := mkDeflateCoding
              n c' (prefix_free_set_inv _ c_prefix_free) c_length_lex c_char_enc c_dense).
 assert(inv1':forall q : fin n,
-               ~ In (q, ll (cd C' q)) ((n0,Datatypes.S m) :: S) ->
+               ~ In (q, ll (cd C' q)) ((n0,Datatypes.S m) :: S0) ->
                cd C' q = Bnil /\ In (q, Vnth x q) R').
 rewrite -> eq2.
 intros q nin.
@@ -1686,16 +1690,16 @@ auto.
 auto.
 auto.
 assert (sS' : StronglySorted (fun x y : fin n * nat => mys y x)
-                             ((n0, Datatypes.S m) :: S)).
+                             ((n0, Datatypes.S m) :: S0)).
 rewrite -> eq2.
 apply SSorted_cons.
 apply SSorted_nil.
 auto.
-assert (inv3' : (((n0, Datatypes.S m) :: S = [ ]) +
+assert (inv3' : (((n0, Datatypes.S m) :: S0 = [ ]) +
                  (forall q : fin n,
                     lex (cd C' q)
                         (cd C'
-                              (fst (car (q, 0%nat) ((n0, Datatypes.S m) :: S))))))%type).
+                              (fst (car (q, 0%nat) ((n0, Datatypes.S m) :: S0))))))%type).
 apply inr.
 intros q.
 unfold car.
@@ -1721,17 +1725,17 @@ inversion Q.
 symmetry.
 apply c'x.
 apply q_neq_n.
-apply (complicated R' ((n0, Datatypes.S m) :: S) L0 x xeq Lasc0 sL sR' sS' C' inv1' inv2' inv3').
+apply (complicated R' ((n0, Datatypes.S m) :: S0) L0 x xeq Lasc0 sL sR' sS' C' inv1' inv2' inv3').
 
 (* S = (p, 0%nat) :: S'' - should be pretty similar *)
 
-assert (inv2' : L0 = (rev ((n0, Datatypes.S m) :: S)) ++ R').
+assert (inv2' : L0 = (rev ((n0, Datatypes.S m) :: S0)) ++ R').
 symmetry.
 rewrite -> inv2.
 rewrite -> eq.
 apply cons_rev.
 
-assert (sS' : StronglySorted (fun x y => mys y x) ((n0, Datatypes.S m) :: S)).
+assert (sS' : StronglySorted (fun x y => mys y x) ((n0, Datatypes.S m) :: S0)).
 apply (existence_sorting_S _ _ R').
 rewrite <- inv2'.
 auto.
@@ -1903,7 +1907,7 @@ auto.
 set (C' := mkDeflateCoding
              n c' (prefix_free_set_inv _ c_prefix_free) c_length_lex c_char_enc c_dense).
 assert(inv1':forall q : fin n,
-               ~ In (q, ll (cd C' q)) ((n0,Datatypes.S m) :: S) ->
+               ~ In (q, ll (cd C' q)) ((n0,Datatypes.S m) :: S0) ->
                cd C' q = Bnil /\ In (q, Vnth x q) R').
 
 rewrite -> eq2.
@@ -1935,14 +1939,14 @@ rewrite -> rep_length.
 apply in_eq.
 auto.
 
-assert (app_or : In (q, Vnth x q) (rev ((n0, Datatypes.S m) :: S)) \/ In (q, Vnth x q) R').
+assert (app_or : In (q, Vnth x q) (rev ((n0, Datatypes.S m) :: S0)) \/ In (q, Vnth x q) R').
 apply in_app_or.
 rewrite <- inv2'.
 apply (Lasc0 q (Vnth x q)).
 reflexivity.
 elim app_or.
 intros inS.
-assert (inS' : In (q, Vnth x q) ((n0, Datatypes.S m) :: S)).
+assert (inS' : In (q, Vnth x q) ((n0, Datatypes.S m) :: S0)).
 apply in_rev.
 auto.
 contradict nin.
@@ -1997,11 +2001,11 @@ auto.
 auto.
 auto.
 auto.
-assert (inv3' : (((n0, Datatypes.S m) :: S = [ ]) +
+assert (inv3' : (((n0, Datatypes.S m) :: S0 = [ ]) +
                  (forall q : fin n,
                     lex (cd C' q)
                         (cd C'
-                              (fst (car (q, 0%nat) ((n0, Datatypes.S m) :: S))))))%type).
+                              (fst (car (q, 0%nat) ((n0, Datatypes.S m) :: S0))))))%type).
 apply inr.
 intros q.
 unfold car.
@@ -2019,11 +2023,11 @@ replace (C n C') with c'.
 apply lemma2.
 apply q_neq_n.
 reflexivity.
-apply (complicated R' ((n0, Datatypes.S m) :: S) L0 x xeq Lasc0 sL sR' sS' C' inv1' inv2' inv3').
+apply (complicated R' ((n0, Datatypes.S m) :: S0) L0 x xeq Lasc0 sL sR' sS' C' inv1' inv2' inv3').
 
 (* final lap :3 - S = (p, Datatypes.S ms) :: S'', R = (n, Datatypes.S m) :: R'' *)
 
-assert (lemma1 : forall n q r, ~ (In (n, q) S /\ In (n, r) R)).
+assert (lemma1 : forall n q r, ~ (In (n, q) S0 /\ In (n, r) R0)).
 intros n3 q r und.
 elim und.
 intros NQ NR.
@@ -2049,9 +2053,9 @@ assert (q_eq_r : q = r).
 rewrite <- NQX.
 rewrite -> NRX.
 reflexivity.
-assert (sRx : StronglySorted mys ((p1, Datatypes.S ms) :: R)).
+assert (sRx : StronglySorted mys ((p1, Datatypes.S ms) :: R0)).
 apply (sorting_app (rev S'')).
-replace (rev S'' ++ (p1, Datatypes.S ms) :: R) with ((rev S'' ++ [(p1, Datatypes.S ms)]) ++ R).
+replace (rev S'' ++ (p1, Datatypes.S ms) :: R0) with ((rev S'' ++ [(p1, Datatypes.S ms)]) ++ R0).
 replace (rev S'' ++ [(p1, Datatypes.S ms)]) with (rev ((p1, Datatypes.S ms) :: S'')).
 rewrite <- eq2.
 rewrite <- inv2.
@@ -2060,15 +2064,15 @@ apply cons_rev_1.
 rewrite <- app_assoc.
 auto.
 assert (H : mys (p1, Datatypes.S ms) (n3, r)).
-apply (existence_sorting_In _ R).
+apply (existence_sorting_In _ R0).
 apply sRx.
 apply NR.
 assert (H1 : mys (p1, Datatypes.S ms) (n0, Datatypes.S m)).
-apply (existence_sorting_In _ R).
+apply (existence_sorting_In _ R0).
 apply sRx.
 rewrite -> eq.
 apply in_eq.
-assert (sSx : StronglySorted mys (rev ((n0, Datatypes.S m) :: S))).
+assert (sSx : StronglySorted mys (rev ((n0, Datatypes.S m) :: S0))).
 apply (sorting_app _ R').
 rewrite -> cons_rev_1.
 rewrite <- app_assoc.
@@ -2078,7 +2082,7 @@ rewrite <- inv2.
 apply sL.
 auto.
 assert (mys (n3, q) (n0, Datatypes.S m)).
-apply (existence_sorting_In_split (rev S) [(n0, Datatypes.S m)]).
+apply (existence_sorting_In_split (rev S0) [(n0, Datatypes.S m)]).
 rewrite <- cons_rev_1.
 apply sSx.
 apply in_rev.
@@ -2142,17 +2146,17 @@ exists p1.
 split.
 apply nnil_ll.
 assert (ll_S : ll (cd c p1) = Datatypes.S ms).
-assert (inS : In (p1, ll (cd c p1)) S).
-assert (indec : {In (p1, ll (cd c p1)) S} + {~In (p1, ll (cd c p1)) S}).
+assert (inS : In (p1, ll (cd c p1)) S0).
+assert (indec : {In (p1, ll (cd c p1)) S0} + {~In (p1, ll (cd c p1)) S0}).
 apply in_dec.
 apply pair_dec.
 elim indec.
 trivial.
 intros nin.
-assert(contr : In (p1, Vnth x p1) R).
+assert(contr : In (p1, Vnth x p1) R0).
 apply inv1.
 apply nin.
-assert (contr2 : In (p1, Datatypes.S ms) S /\ In (p1, Vnth x p1) R).
+assert (contr2 : In (p1, Datatypes.S ms) S0 /\ In (p1, Vnth x p1) R0).
 split.
 rewrite -> eq2.
 apply in_eq.
@@ -2189,7 +2193,7 @@ unfold kraft_d.
 unfold kraft_vec.
 apply kraft_nvec_le.
 intros q.
-assert (indec : {In (q, ll (cd c q)) S} + {~ In (q, ll (cd c q)) S}).
+assert (indec : {In (q, ll (cd c q)) S0} + {~ In (q, ll (cd c q)) S0}).
 apply in_dec.
 apply pair_dec.
 elim indec.
@@ -2208,7 +2212,7 @@ rewrite -> (nth_map _ (C n c) q q eq_refl).
 auto.
 
 intros notin.
-assert (H : cd c q = Bnil /\ In (q, Vnth x q) R).
+assert (H : cd c q = Bnil /\ In (q, Vnth x q) R0).
 apply inv1.
 auto.
 elim H.
@@ -2250,7 +2254,7 @@ assert (H0 : Vnth c_ext q = Vnth (Vmap lb (C n c)) q).
 apply c_ext_b.
 auto.
 rewrite -> H0.
-assert (indec : {In (q, ll (cd c q)) S} + {~ In (q, ll (cd c q)) S}).
+assert (indec : {In (q, ll (cd c q)) S0} + {~ In (q, ll (cd c q)) S0}).
 apply in_dec.
 apply pair_dec.
 elim indec.
@@ -2269,7 +2273,7 @@ rewrite -> (nth_map _ _ q q).
 auto.
 auto.
 intros notin.
-assert (H1 : cd c q = Bnil /\ In (q, Vnth x q) R).
+assert (H1 : cd c q = Bnil /\ In (q, Vnth x q) R0).
 apply inv1.
 auto.
 elim H1.
@@ -2292,10 +2296,10 @@ assert (hlp : cd c b = Bnil).
 apply inv1.
 rewrite -> b_eq_n.
 intros isinS.
-assert (isinR : In (n0, Datatypes.S m) R).
+assert (isinR : In (n0, Datatypes.S m) R0).
 rewrite -> eq.
 apply in_eq.
-assert (isinSandR : In (n0, ll (cd c n0)) S /\ In (n0, Datatypes.S m) R).
+assert (isinSandR : In (n0, ll (cd c n0)) S0 /\ In (n0, Datatypes.S m) R0).
 auto.
 contradict isinSandR.
 apply lemma1.
@@ -2344,9 +2348,9 @@ trivial.
 destruct H as [m0 m0_ex].
 
 (* todo: already proved before *)
-assert (sRx : StronglySorted mys ((p1, Datatypes.S ms) :: R)).
+assert (sRx : StronglySorted mys ((p1, Datatypes.S ms) :: R0)).
 apply (sorting_app (rev S'')).
-replace (rev S'' ++ (p1, Datatypes.S ms) :: R) with ((rev S'' ++ [(p1, Datatypes.S ms)]) ++ R).
+replace (rev S'' ++ (p1, Datatypes.S ms) :: R0) with ((rev S'' ++ [(p1, Datatypes.S ms)]) ++ R0).
 replace (rev S'' ++ [(p1, Datatypes.S ms)]) with (rev ((p1, Datatypes.S ms) :: S'')).
 rewrite <- eq2.
 rewrite <- inv2.
@@ -2356,14 +2360,14 @@ rewrite <- app_assoc.
 auto.
 
 assert (lemma2 : mys (p1, Datatypes.S ms) (n0, Datatypes.S m)).
-apply (existence_sorting_In _ R).
+apply (existence_sorting_In _ R0).
 apply sRx.
 rewrite -> eq.
 apply in_eq.
 
-assert (lemma3 : forall p q, In (p, q) S -> ll (cd c p) = q).
+assert (lemma3 : forall p q, In (p, q) S0 -> ll (cd c p) = q).
 intros p2 q ins.
-assert (indec : {In (p2, ll (cd c p2)) S}+{~In (p2, ll (cd c p2)) S}).
+assert (indec : {In (p2, ll (cd c p2)) S0}+{~In (p2, ll (cd c p2)) S0}).
 apply in_dec.
 apply pair_dec.
 elim indec.
@@ -2392,10 +2396,10 @@ rewrite <- l1.
 rewrite -> l2.
 reflexivity.
 intros notin.
-assert (quark : In (p2, Vnth x p2) R).
+assert (quark : In (p2, Vnth x p2) R0).
 apply inv1.
 auto.
-assert (contr : In (p2, q) S /\ In (p2, Vnth x p2) R).
+assert (contr : In (p2, q) S0 /\ In (p2, Vnth x p2) R0).
 auto.
 contradict contr.
 apply lemma1.
@@ -2412,11 +2416,11 @@ auto.
 
 assert (lemma5 : p1 <> n0).
 intros p_eq_n.
-assert (in1 : In (n0, Datatypes.S ms) S).
+assert (in1 : In (n0, Datatypes.S ms) S0).
 rewrite <- p_eq_n.
 rewrite -> eq2.
 apply in_eq.
-assert (in2 : In (n0, Datatypes.S m) R).
+assert (in2 : In (n0, Datatypes.S m) R0).
 rewrite -> eq.
 apply in_eq.
 apply (lemma1 n0 (Datatypes.S ms) (Datatypes.S m)).
@@ -2518,7 +2522,7 @@ apply pair_dec.
 elim indec.
 auto.
 intros nin.
-assert (ninS : ~ In (a, ll (cd c a)) S).
+assert (ninS : ~ In (a, ll (cd c a)) S0).
 rewrite -> eq2.
 contradict nin.
 assert (inve : ((p1, Datatypes.S ms)=(a, ll (cd c a))) \/ In (a, ll (cd c a)) S'').
@@ -2607,7 +2611,7 @@ intros ll_lt.
 
 assert (ll_gt : (ll (m0 ++ repeat (m - ms) false) >= ll (cd c b))%nat).
 rewrite -> m0_x_len.
-assert (indec : {In (b, ll (cd c b)) S} + {~ In (b, ll (cd c b)) S}).
+assert (indec : {In (b, ll (cd c b)) S0} + {~ In (b, ll (cd c b)) S0}).
 apply in_dec.
 apply pair_dec.
 elim indec.
@@ -2708,7 +2712,7 @@ intros.
 apply lex_refl.
 intros b_neq_n.
 intros ll_eq fle.
-assert (indec : {In (b, ll (Vnth c' b)) S} + {~ In (b, ll (Vnth c' b)) S}).
+assert (indec : {In (b, ll (Vnth c' b)) S0} + {~ In (b, ll (Vnth c' b)) S0}).
 apply in_dec.
 apply pair_dec.
 elim indec.
@@ -2840,7 +2844,7 @@ intros a c0 nnil lx ll_eq.
 elim (eq_fin_dec a n0).
 intros a_eq_n.
 assert (tk : {l' | prefix l' c0 /\ ll l' = ll (Vnth c' p1)}).
-apply take.
+apply take_lemma.
 rewrite -> ll_eq.
 rewrite -> a_eq_n.
 rewrite -> lltmp1.
@@ -2882,9 +2886,9 @@ elim b_ex.
 intros b'1 b'2.
 elim (eq_fin_dec b n0).
 intros iseq.
-assert (nin : ~ In (n0, ll (cd c n0)) S).
+assert (nin : ~ In (n0, ll (cd c n0)) S0).
 intros Q.
-assert (inn : In (n0, Datatypes.S m) R).
+assert (inn : In (n0, Datatypes.S m) R0).
 rewrite -> eq.
 apply in_eq.
 apply (lemma1 n0 (ll (cd c n0)) (Datatypes.S m)).
@@ -3009,9 +3013,9 @@ destruct H as [b' [H3 H4]].
 exists b'.
 assert (b'_neq_n : b' <> n0).
 intros b'_eq_n.
-assert (ninS : ~ In (b', ll (cd c b')) S).
+assert (ninS : ~ In (b', ll (cd c b')) S0).
 intros otherwise.
-assert (ninR : In (b', Datatypes.S m) R).
+assert (ninR : In (b', Datatypes.S m) R0).
 rewrite -> b'_eq_n.
 rewrite -> eq.
 apply in_eq.
@@ -3034,7 +3038,7 @@ set (C' := mkDeflateCoding
              n c' (prefix_free_set_inv _ prefix_free) length_lex char_enc dense).
 
 assert(inv1':forall q : fin n,
-               ~ In (q, ll (cd C' q)) ((n0,Datatypes.S m) :: S) ->
+               ~ In (q, ll (cd C' q)) ((n0,Datatypes.S m) :: S0) ->
                cd C' q = Bnil /\ In (q, Vnth x q) R').
 intros q.
 elim (eq_fin_dec q n0).
@@ -3052,7 +3056,7 @@ apply c_x.
 reflexivity.
 intros q_neq_n.
 intros nin.
-assert (~ In (q, ll (cd C' q)) S).
+assert (~ In (q, ll (cd C' q)) S0).
 contradict nin.
 apply in_cons.
 apply nin.
@@ -3077,12 +3081,12 @@ contradict q_neq_n.
 auto.
 auto.
 
-assert (inv2' : L0 = rev ((n0, Datatypes.S m)::S) ++ R').
+assert (inv2' : L0 = rev ((n0, Datatypes.S m)::S0) ++ R').
 rewrite -> cons_rev.
 rewrite <- eq.
 apply inv2.
 
-assert (sS' : StronglySorted (fun x y => mys y x) ((n0, Datatypes.S m)::S)).
+assert (sS' : StronglySorted (fun x y => mys y x) ((n0, Datatypes.S m)::S0)).
 apply (existence_sorting_S _ (n0,Datatypes.S m) R').
 rewrite -> cons_rev.
 rewrite <- eq.
@@ -3094,10 +3098,10 @@ rewrite -> eq in sR.
 inversion sR.
 trivial.
 
-assert (inv3' : (((n0, Datatypes.S m) :: S = [ ]) +
+assert (inv3' : (((n0, Datatypes.S m) :: S0 = [ ]) +
                  (forall q : fin n,
                     lex (cd C' q)
-                        (cd C' (fst (car (q, 0%nat) ((n0, Datatypes.S m) :: S))))))%type).
+                        (cd C' (fst (car (q, 0%nat) ((n0, Datatypes.S m) :: S0))))))%type).
 apply inr.
 intros q.
 unfold car.
@@ -3122,7 +3126,7 @@ reflexivity.
 symmetry.
 apply c_x.
 apply q_neq_n.
-apply (complicated R' ((n0, Datatypes.S m)::S) L0 x xeq Lasc0 sL sR' sS' C' inv1' inv2' inv3').
+apply (complicated R' ((n0, Datatypes.S m)::S0) L0 x xeq Lasc0 sL sR' sS' C' inv1' inv2' inv3').
 
 (* Beginning *)
 apply SSorted_nil.

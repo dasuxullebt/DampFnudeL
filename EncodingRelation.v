@@ -103,13 +103,16 @@ Definition distCodeMax :=
     d"6144"  ; d"8192"  ; d"12288" ; d"16384" ;
     d"24576" ; d"32768" ].
 
+(* FIXED1 *)
 (** See RFC 1951, section 3.2.6. *)
 Definition vector_for_fixed_lit_code : vec nat 288 :=
-  of_list ((repeat 144 8) ++ (repeat (255 - 143) 9) ++ (repeat (279 - 255) 7) ++ (repeat (287 - 279) 8)).
+  of_list ((repeat 144 8) ++ (repeat (255 - 143) 9) ++
+     (repeat (279 - 255) 7) ++ (repeat (287 - 279) 8)).
 
 (** See RFC 1951, section 3.2.6. *)
-Definition vector_for_fixed_dist_code : vec nat 32 := of_list (repeat 32 5).
-
+Definition vector_for_fixed_dist_code : vec nat 32 :=
+   of_list (repeat 32 5).
+(* FIXED2 *)
 
 (** For the constant codings, we use our already proved uniqueness and existence predicates *)
 Definition fixed_lit_code_ex : { D : deflateCoding 288 | vector_for_fixed_lit_code = Vmap lb (C 288 D)}.
@@ -132,8 +135,12 @@ Defined.
 Definition fixed_lit_code := proj1_sig fixed_lit_code_ex.
 Definition fixed_dist_code := proj1_sig fixed_dist_code_ex.
 
+(* HCLENSNAT1 *)
 (** See RFC 1951, section 3.2.7. *)
-Definition HCLensNat := [16; 17; 18; 0; 8; 7; 9; 6; 10; 5; 11; 4; 12; 3; 13; 2; 14; 1; 15].
+Definition HCLensNat :=
+  [16; 17; 18; 0;  8; 7;  9; 6; 10; 5;
+   11;  4; 12; 3; 13; 2; 14; 1; 15].
+(* HCLENSNAT2 *)
 
 (* ONEBIT1 *)
 Inductive OneBit : bool -> LB -> Prop :=
@@ -173,11 +180,15 @@ Definition readBitsLSB (length : nat) : nat -> LB -> Prop :=
 (** Uncompressed block, no padding. Padding is done in
 [OneBlockWithPadding]. See RFC 1951, section 3.2.4. *)
 
-Definition UncompressedBlockDirect : SequenceWithBackRefs Byte -> LB -> Prop :=
+(* UCBD1 *)
+Definition UncompressedBlockDirect
+  : SequenceWithBackRefs Byte -> LB -> Prop :=
   (readBitsLSB 16) >>=
   fun len  => (readBitsLSB 16) >>=
   fun nlen =>
-    (fun swbr lb => len + nlen = 2 ^ 16 - 1 /\ nBytesDirect len swbr lb).
+    (fun swbr lb => len + nlen = 2 ^ 16 - 1 /\
+                    nBytesDirect len swbr lb).
+(* UCBD2 *)
 
 (** header parsing for dynamically compressed blocks *)
 
@@ -185,40 +196,61 @@ Definition UncompressedBlockDirect : SequenceWithBackRefs Byte -> LB -> Prop :=
 is the list of lengths of the coding [dc], ordered by the encoded
 characters. For further detail, see [DeflateCoding]. *)
 
-Inductive CodingOfSequence {n : nat} (l : list nat) (dc : deflateCoding n) :=
-| makeCodingOfSequence : forall (eq : ll l = n), Vmap lb (C _ dc) = vec_id eq (of_list l) -> CodingOfSequence l dc.
+(* CODINGOFSEQUENCE1 *)
+Inductive CodingOfSequence {n : nat} (l : list nat)
+          (dc : deflateCoding n) :=
+| makeCodingOfSequence : forall (eq : ll l = n),
+    Vmap lb (C _ dc) = vec_id eq (of_list l) ->
+    CodingOfSequence l dc.
+(* CODINGOFSEQUENCE2 *)
 
 (** The code length code. *)
 
 (** Raw code length code - a list of [hclen] bit-triples, which encode code lengths from 0 to 7. *)
 
-Inductive CLCHeaderRaw : forall (hclen : nat) (input : LB) (output : list nat), Prop :=
+(* CLCHEADERRAW1 *)
+Inductive CLCHeaderRaw
+  : forall (hclen : nat) (input : LB) (output : list nat), Prop :=
 | zeroCLCHeaderRaw : CLCHeaderRaw 0 nil nil
-| succCLCHeaderRaw : forall n i o j m, CLCHeaderRaw n i o -> ll m = 3 -> LSBnat m j -> CLCHeaderRaw (S n) (m ++ i) (j :: o).
+| succCLCHeaderRaw : forall n i o j m, CLCHeaderRaw n i o ->
+   ll m = 3 -> LSBnat m j -> CLCHeaderRaw (S n) (m ++ i) (j :: o).
+(* CLCHEADERRAW2 *)
 
 (** Pad the raw header with zeroes, so its length is 19. *)
 
-Inductive CLCHeaderPadded (hclen : nat) (input : LB) (output : list nat) : Prop :=
-| makeCLCHeaderPadded : forall m output1, CLCHeaderRaw hclen input output1 ->
-                                          output = output1 ++ repeat m 0 ->
-                                          ll output = 19 ->
-                                          CLCHeaderPadded hclen input output.
+(* CLCHEADERPADDED1 *)
+Inductive CLCHeaderPadded
+  (hclen : nat) (input : LB) (output : list nat) : Prop :=
+| makeCLCHeaderPadded : forall m output1,
+                         CLCHeaderRaw hclen input output1 ->
+                         output = output1 ++ repeat m 0 ->
+                         ll output = 19 ->
+                         CLCHeaderPadded hclen input output.
+(* CLCHEADERPADDED2 *)
 
 (** Apply the permutation to the padded header. *)
 
-Inductive CLCHeaderPermuted (hclen : nat) (input : LB) (output : list nat) : Prop :=
-| makeCLCHeaderPermuted : forall output1,
-                            CLCHeaderPadded hclen input output1 ->
-                            (forall m, nth_error output (nth m HCLensNat 19) = nth_error output1 m) ->
-                            CLCHeaderPermuted hclen input output.
+(* CLCHEADERPERMUTED1 *)
+Inductive CLCHeaderPermuted
+    (hclen : nat) (input : LB) (output : list nat) : Prop :=
+| makeCLCHeaderPermuted :
+   forall output1,
+        CLCHeaderPadded hclen input output1 ->
+        (forall m, nth_error output (nth m HCLensNat 19) =
+	           nth_error output1 m) ->
+         CLCHeaderPermuted hclen input output.
+(* CLCHEADERPERMUTED2*)
 
 (** [CLCHeader hclen output input] means that the code length coding [output] is encoded in thee [hclen]*3 bits (see above) from [input]. *)
 
-Inductive CLCHeader (hclen : nat) (output : deflateCoding 19) (input : LB) : Prop :=
+(* CLCHEADER1 *)
+Inductive CLCHeader
+  (hclen : nat) (output : deflateCoding 19) (input : LB) : Prop :=
 | makeCLCHeader : forall cooked,
                     CLCHeaderPermuted hclen input cooked ->
                     CodingOfSequence cooked output ->
                     CLCHeader hclen output input.
+(* CLCHEADER2 *)
 
 (** This definition is rather complicated, but it makes later
 definitions easier, and encodes a pattern that occurs in multiple
@@ -256,41 +288,56 @@ Inductive CompressedWithExtraBits
 coding. See RFC 1951 section 3.2.7. We encode into a sequence with
 backreferences, because some codes encode repetitions. *)
 
-Inductive CommonCodeLengthsSWBR (clc : deflateCoding 19) : nat -> SequenceWithBackRefs nat -> LB -> Prop :=
+(* CCLSWBR1 *)
+Inductive CommonCodeLengthsSWBR (clc : deflateCoding 19)
+  : nat -> SequenceWithBackRefs nat -> LB -> Prop :=
 | cswbr0 : CommonCodeLengthsSWBR clc 0 [] []
 | cswbrc :
     forall m n brs lb1 input,
       CommonCodeLengthsSWBR clc n brs lb1 ->
       m < 16 ->
       dc_enc clc m input ->
-      CommonCodeLengthsSWBR clc (n + 1) (inl m :: brs) (input ++ lb1)
+      CommonCodeLengthsSWBR clc (n + 1) (inl m :: brs)
+                            (input ++ lb1)
 | cswbr16 :
     forall m n brs lb1 input,
       CommonCodeLengthsSWBR clc n brs lb1 ->
       CompressedWithExtraBits clc 16 [2] [3] [6] m input ->
-      CommonCodeLengthsSWBR clc (n + m) (inr (m, 1) :: brs) (input ++ lb1)
+      CommonCodeLengthsSWBR clc (n + m) (inr (m, 1) :: brs)
+                            (input ++ lb1)
 | cswbr17 :
     forall m n brs lb1 input,
       CommonCodeLengthsSWBR clc n brs lb1 ->
       CompressedWithExtraBits clc 17 [3] [3 - 1] [10 - 1] m input ->
-      CommonCodeLengthsSWBR clc (n + m + 1) (inl 0 :: inr (m, 1) :: brs) (input ++ lb1)
+      CommonCodeLengthsSWBR clc (n + m + 1) (inl 0 :: inr (m, 1) :: brs)
+                            (input ++ lb1)
 | cswbr18 :
     forall m n brs lb1 input,
       CommonCodeLengthsSWBR clc n brs lb1 ->
       CompressedWithExtraBits clc 18 [7] [11 - 1] [138 - 1] m input ->
-      CommonCodeLengthsSWBR clc (n + m + 1) (inl 0 :: inr (m, 1) :: brs) (input ++ lb1).
+      CommonCodeLengthsSWBR clc (n + m + 1) (inl 0 :: inr (m, 1) :: brs)
+                            (input ++ lb1).
+(* CCLSWBR2 *)
 
 (** A sequence of code lengths, encoded with the given code length
 coding. Backreferences will be resolved, so only code lengths 0
 through 15 remain. *)
 
-Inductive CommonCodeLengthsN (clc : deflateCoding 19) (n : nat) (B : list nat) (A : LB) : Prop := 
-| ccl : forall C, CommonCodeLengthsSWBR clc n C A -> ResolveBackReferences C B -> CommonCodeLengthsN clc n B A.
+(* CCLN1 *)
+Inductive CommonCodeLengthsN (clc : deflateCoding 19) (n : nat)
+          (B : list nat) (A : LB) : Prop := 
+| ccl : forall C, CommonCodeLengthsSWBR clc n C A ->
+                  ResolveBackReferences C B ->
+                  CommonCodeLengthsN clc n B A.
+(* CCLN2 *)
 
 (** After the code lengths are read and repeated, they are split and
 then parsed into a literal/lengt and a distance code lengths . *)
 
-Inductive SplitCodeLengths (clc : deflateCoding 19) (hlit hdist : nat) (litlen : vec nat 288) (dist : vec nat 32) (input : LB) : Prop :=
+(* SCL1 *)
+Inductive SplitCodeLengths (clc : deflateCoding 19) (hlit hdist : nat)
+          (litlen : vec nat 288) (dist : vec nat 32) (input : LB)
+  : Prop :=
 | makeSplitCodeLengths :
     forall litlenL distL lm ld,
       ll litlenL = hlit ->
@@ -299,13 +346,20 @@ Inductive SplitCodeLengths (clc : deflateCoding 19) (hlit hdist : nat) (litlen :
       to_list dist = distL ++ repeat ld 0 ->
       CommonCodeLengthsN clc (hlit + hdist) (litlenL ++ distL) input ->
       SplitCodeLengths clc hlit hdist litlen dist input.
+(* SCL2 *)
 
 (** From the vector of lengths, encode codings *)
 
-Inductive LitLenDist (clc : deflateCoding 19) (hlit hdist : nat) (litlen : deflateCoding 288) (dist : deflateCoding 32) (input : LB) : Prop :=
+(* LLD1 *)
+Inductive LitLenDist (clc : deflateCoding 19) (hlit hdist : nat)
+          (litlen : deflateCoding 288) (dist : deflateCoding 32)
+          (input : LB) : Prop :=
 | makeLitLenDist :
-    SplitCodeLengths clc hlit hdist (Vmap lb (C 288 litlen)) (Vmap lb (C 32 dist)) input ->
+    SplitCodeLengths clc hlit hdist
+                     (Vmap lb (C 288 litlen))
+                     (Vmap lb (C 32 dist)) input ->
     LitLenDist clc hlit hdist litlen dist input.
+(* LLD2 *)
 
 
 (* LENDIST1 *)
@@ -337,24 +391,34 @@ Inductive CompressedSWBR
 		                   (lbits ++ dbits ++ prev_lb).
 (* CSWBR2 *)
 
-Definition DynamicallyCompressedHeader : (deflateCoding 288 * deflateCoding 32) -> LB -> Prop :=
+(* DCH1 *)
+Definition DynamicallyCompressedHeader
+  : (deflateCoding 288 * deflateCoding 32) -> LB -> Prop :=
   (readBitsLSB 5)
     >>= fun hlit => (readBitsLSB 5)
     >>= fun hdist => (readBitsLSB 4)
     >>= fun hclen => (CLCHeader (hclen + 4))
     >>= fun clc lld =>
           LitLenDist clc (hlit + 257) (hdist + 1) (fst lld) (snd lld).
+(* DCH2 *)
 
-Definition DynamicallyCompressedBlock : SequenceWithBackRefs Byte -> LB -> Prop :=
-  DynamicallyCompressedHeader >>= (fun lld => CompressedSWBR (fst lld) (snd lld)).
+(* DCB1 *)
+Definition DynamicallyCompressedBlock
+  : SequenceWithBackRefs Byte -> LB -> Prop :=
+  DynamicallyCompressedHeader
+    >>= fun lld => CompressedSWBR (fst lld) (snd lld).
+(* DCB2 *)
 
 (** A statically compressed block is a block with defined static codings *)
 
-Inductive StaticallyCompressedBlock  (output : SequenceWithBackRefs Byte) : LB -> Prop :=
+(* STATIC1 *)
+Inductive StaticallyCompressedBlock
+             (output : SequenceWithBackRefs Byte) : LB -> Prop :=
 | makeSCB :
     forall input,
       CompressedSWBR fixed_lit_code fixed_dist_code output input ->
       StaticallyCompressedBlock output input.
+(* STATIC2 *)
 
 (** The natural argument denotes the bits that have already been
 read. Padding is assured by making the bit count a multiple of

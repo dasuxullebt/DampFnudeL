@@ -4,7 +4,9 @@ Require Import Shorthand.
 Require Import Backreferences.
 Require Import Combi.
 Require Import StrongDec.
+Require Import Extraction.
 
+Require Import Omega.
 Require Import Ascii.
 Require Import String.
 Require Import Coq.Arith.Compare_dec.
@@ -13,306 +15,191 @@ Require Import Program.
 Require Import List.
 Import ListNotations.
 
-Inductive ExpList (A : Set) : Set :=
-| Enil : ExpList A
-| Econs1 : A -> ExpList (A * A) -> ExpList A
-| Econs2 : A -> A -> ExpList (A * A) -> ExpList A.
+(* DS1A *)
+Axiom DiffStack : Set -> Set.
+(* DS1B *)
 
-Arguments Enil [_].
-Arguments Econs1 [_] _ _.
-Arguments Econs2 [_] _ _ _.
+(* DS2A *)
+Axiom DSNil : forall (A : Set), DiffStack A.
+Arguments DSNil [_].
+(* DS2B *)
 
-Inductive EDepair {A : Set}  : list (A * A) -> list A -> Prop :=
-| EDnil : EDepair nil nil
-| EDCons : forall a b LD L, EDepair L LD -> EDepair ((a, b) :: L) (a :: b :: LD).
+(* DS3A *)
+Axiom DSPush : forall (A : Set) (a : A) (ds : DiffStack A), DiffStack A.
+Arguments DSPush [_].
+(* DS3B *)
 
-Lemma EDepairNth : forall {A} L LD n Q, @EDepair A L LD -> (nth (2 * n) LD Q, nth (2 * n + 1) LD Q) = nth n L (Q, Q).
-Proof.
-  intros A L LD n;
-  revert n L LD;
-  induction n as [|n IHn];
-    [ intros ? ? ? edep;
-      dependent destruction edep; [reflexivity | reflexivity]
-    | intros L LD Q edep;
-      dependent destruction edep; 
-      [ reflexivity
-      | replace (nth (2 * S n) (a :: b :: LD) Q) with (nth (2 * n) LD Q);
-        [ replace (nth (2 * S n + 1) (a :: b :: LD) Q) with (nth (2 * n + 1) LD Q);
-          [ apply IHn; exact edep
-          | replace (2 * S n + 1) with (S (S (2 * n + 1))); [reflexivity | omega]]
-        | replace (2 * S n) with (S (S (2 * n))); [reflexivity | omega]]]].
-Qed.
+(* DSNTH1 *)
+Axiom DSNth : forall (A : Set) (n : nat)
+              (ds : DiffStack A) (default : A), A * DiffStack A.
+Arguments DSNth [_].
+(* DSNTH2 *)
 
-(* notice: we utilize lazyness! *)
-Fixpoint depair {A : Set} (l : list (A * A)) : list A :=
-  match l with
-    | nil => nil
-    | ((a, b) :: l') => a :: b :: depair l'
-  end.
+(* FAKELINEAR1 *)
+Axiom DSNthFakeLinear : forall {A : Set} n ds d,
+    snd (@DSNth A n ds d) = ds.
+(* FAKELINEAR2 *)
 
-Lemma depair_EDepair : forall {A} l, @EDepair A l (depair l).
-Proof.
-  intros A.
-  induction l as [|[a b] l IHl].
-  constructor.
-  constructor.
-  exact IHl.
-Qed.
+(* DSTOL1 *)								 
+Axiom DStoL : forall (A : Set) (ds : DiffStack A), list A * DiffStack A.
+Arguments DStoL [_].
+(* DSTOL2 *)
+									 
+Axiom DStoLFakeLinear : forall {A : Set} ds, snd (@DStoL A ds) = ds.
 
-Inductive EReflects {A : Set} : ExpList A -> list A -> Prop :=
-| ERnil : EReflects Enil nil
-| ERcons1 : forall (E : ExpList (A * A)) (L : list (A*A)) (LD : list A) (a : A), @EReflects (A * A) E L -> EDepair L LD -> EReflects (Econs1 a E) (a :: LD)
-| ERcons2 : forall (E : ExpList (A * A)) (L : list (A*A)) (LD : list A) (a b : A), @EReflects (A * A) E L -> EDepair L LD -> EReflects (Econs2 a b E) (a :: b :: LD).
+Axiom DStoR : forall (A : Set) (ds : DiffStack A), list A * DiffStack A.
+Arguments DStoR [_].
 
-Fixpoint EtoL {A : Set} (e : ExpList A) : list A :=
-  match e with
-    | Enil => nil
-    | Econs1 a e' => a :: depair (EtoL e')
-    | Econs2 a b e' => a :: b :: depair (EtoL e')
-  end.
+Axiom DStoRFakeLinear : forall {A : Set} ds, snd (@DStoR A ds) = ds.
 
-Lemma EtoL_EReflects : forall {A} e, @EReflects A e (EtoL e).
-Proof.
-  intros A.
-  induction e as [|? a e IHe|? a b e IHe].
-  constructor.
-  replace (EtoL (Econs1 a e)) with (a :: depair (EtoL e)).
-  apply (ERcons1 _ (EtoL e)).
-  trivial.
-  apply depair_EDepair.
-  reflexivity.
+Axiom DStoLR : forall (A : Set) (ds : DiffStack A),
+    fst (DStoR ds) = (rev (fst (DStoL ds))).
 
-  replace (EtoL (Econs2 a b e)) with (a :: b :: depair (EtoL e)).
-  apply (ERcons2 _ (EtoL e)).
-  trivial.
-  apply depair_EDepair.
+Axiom ResetDS : forall (A : Set) (ds : DiffStack A), DiffStack A.
+Arguments ResetDS [_].
+
+Axiom ResetDSisNil : forall (A : Set) (ds : DiffStack A),
+    DSNil = ResetDS ds.
+
+(* LST1 *)
+Axiom NilNil : forall (A : Set), DStoL (@DSNil A) = ([], DSNil).
+
+Axiom PushLst : forall (A : Set) (a : A) b,
+    fst (DStoL (DSPush a b)) = a :: fst (DStoL b).
+
+Axiom DSNth_nth : forall {A : Set} (x : DiffStack A) (a : A) (n : nat),
+    fst (DSNth n x a) = nth n (fst (DStoL x)) a.
+(* LST2 *)
+									 
+Lemma depair : forall {A B : Set} (x : A * B),
+    x = (fst x, snd x).
+Proof.    
+  intros.
+  destruct x.
   reflexivity.
 Qed.
 
-Fixpoint Elen {A : Set} (x : ExpList A) {struct x} : nat :=
-  match x with
-    | Enil => 0
-    | Econs1 _ x' => 1 + 2 * Elen x'
-    | Econs2 _ _ x' => 2 + 2 * Elen x'
-  end.
-
-Fixpoint Enth {A : Set} (n : nat) (x : ExpList A) (default : A) {struct x} : A :=
-  match x with
-    | Enil => default
-    | Econs1 a x' => match n with
-                       | 0 => a
-                       | (S n') => match Enth (n' / 2) x' (default, default) with
-                                     | (a, b) => match n' mod 2 with
-                                                   | 0 => a
-                                                   | _ => b
-                                                 end
-                                   end
-                     end
-    | Econs2 a b x' => match n with
-                         | 0 => a
-                         | 1 => b
-                         | (S (S n')) => match Enth (n' / 2) x' (default, default) with
-                                           | (a, b) => match n' mod 2 with
-                                                         | 0 => a
-                                                         | _ => b
-                                                       end
-                                         end
-                       end
-  end.
-
-Lemma ElenEnth : forall {A : Set} (x : ExpList A) (a b : A) n,
-                   a <> b -> n < Elen x -> Enth n x a = Enth n x b.
-Proof.
-  intro A;
-  induction x as [| ? a x IHx | ? a b x IHx];
-    intros a0 b0 n neq nelen;
-    [ inversion nelen | idtac | destruct n; [reflexivity | idtac] ];
-  (destruct n;
-    [ reflexivity
-    | simpl;
-      assert (K1 : n = 2 * (n / 2) + n mod 2);
-      [ apply div_mod; omega
-      | assert (K2 : n mod 2 < 2);
-        [ apply mod_bound_pos; [ omega | omega ]
-        | assert (K4 : n / 2 < Elen x);
-          [solve [assert (K3 : Elen (Econs2 a b x) = S ( S ( 2 * Elen x )));
-                   [ reflexivity | omega]
-                 | assert (K3 : Elen (Econs1 a x) = S ( 2 * Elen x ));
-                   [reflexivity | omega]]
-          | rewrite -> (IHx (a0, a0) (b0, b0));
-            [ reflexivity
-            | intro Q;
-              contradict neq;
-              inversion Q;
-              reflexivity
-            | auto ]]]]]).
-Qed.
-
-Lemma Enth_nth : forall {A : Set} (x : ExpList A) (a : A) (n : nat), Enth n x a = nth n (EtoL x) a.
-Proof.
-  intros A.
-  induction x as [| ? a x IHx | ? a b x IHx]. 
-  intros a n.
-  destruct n; [reflexivity | reflexivity].
-
-  intros a0 n.
-  destruct n; [reflexivity | idtac].
-
-  assert (k : Enth (S n) (Econs1 a x) a0 = match Enth (n / 2) x (a0, a0) with
-                                             | (a, b) => match n mod 2 with
-                                                           | 0 => a
-                                                           | _ => b
-                                                         end
-                                           end).
-  reflexivity.
-  
-  destruct (n mod 2) eqn:nm2.
-  rewrite -> k.
-  rewrite -> IHx.
-  rewrite <- (EDepairNth (EtoL x) (depair (EtoL x))).
-  assert (l : EtoL (Econs1 a x) = a :: depair (EtoL x)).
-  reflexivity.
-  rewrite -> l.
-  assert (m : 2 * (n / 2) = n).
-  assert (m : 2 * (n / 2) + n mod 2 = n).
-  symmetry.
-  apply div_mod.
-  omega.
-  omega.
-  rewrite -> m.
-  reflexivity.
-  apply depair_EDepair.
-
-  rewrite -> k.
-  rewrite -> IHx.
-  assert (l : EtoL (Econs1 a x) = a :: depair (EtoL x)).
-  reflexivity.
-  rewrite -> l.
-  rewrite <- (EDepairNth (EtoL x) (depair (EtoL x))).
-  assert (m : 2 * (n / 2) + 1 = n).
-  assert (m : 2 * (n / 2) + n mod 2 = n).
-  symmetry.
-  apply div_mod.
-  omega.
-  assert (n mod 2 < 2).
-  apply mod_bound_pos.
-  omega.
-  omega.
-  omega.
-  rewrite -> m.
-  reflexivity.
-  apply depair_EDepair.
-
-  intros a0 n.
-  destruct n; [reflexivity | destruct n; [reflexivity | idtac]].
-
-  assert (k : Enth (S (S n)) (Econs2 a b x) a0 = match Enth (n / 2) x (a0, a0) with
-                                                   | (a, b) => match n mod 2 with
-                                                                 | 0 => a
-                                                                 | _ => b
-                                                               end
-                                                 end).
-  reflexivity.
-  
-  destruct (n mod 2) eqn:nm2.
-  rewrite -> k.
-  rewrite -> IHx.
-  rewrite <- (EDepairNth (EtoL x) (depair (EtoL x))).
-  assert (l : EtoL (Econs2 a b x) = a :: b :: depair (EtoL x)).
-  reflexivity.
-  rewrite -> l.
-  assert (m : 2 * (n / 2) = n).
-  assert (m : 2 * (n / 2) + n mod 2 = n).
-  symmetry.
-  apply div_mod.
-  omega.
-  omega.
-  rewrite -> m.
-  reflexivity.
-  apply depair_EDepair.
-
-  rewrite -> k.
-  rewrite -> IHx.
-  assert (l : EtoL (Econs2 a b x) = a :: b :: depair (EtoL x)).
-  reflexivity.
-  rewrite -> l.
-  rewrite <- (EDepairNth (EtoL x) (depair (EtoL x))).
-  assert (m : 2 * (n / 2) + 1 = n).
-  assert (m : 2 * (n / 2) + n mod 2 = n).
-  symmetry.
-  apply div_mod.
-  omega.
-  assert (n mod 2 < 2).
-  apply mod_bound_pos.
-  omega.
-  omega.
-  omega.
-  rewrite -> m.
-  reflexivity.
-  apply depair_EDepair.
-Qed.
-
-Fixpoint Econs {A : Set} (a : A) (x : ExpList A) {struct x} : ExpList A :=
-  match x with
-    | Enil => Econs1 a Enil
-    | Econs1 b x' => Econs2 a b x'
-    | Econs2 b c x' => Econs1 a (Econs (b, c) x')
-  end.
-
-Lemma EconsL : forall {A : Set} (a : A) x, EtoL (Econs a x) = a :: EtoL x.
-Proof.
-  intros A a x.
-  revert x a.
-  induction x as [| ? a x IHx| ? a b x IHx].
-
-  reflexivity.
-
-  intro b.
-  reflexivity.
-
-  intro c.
-  assert (k : Econs c (Econs2 a b x) = Econs1 c (Econs (a, b) x)).
-  reflexivity.
-  rewrite -> k.
-  assert (EtoL (Econs1 c (Econs (a, b) x)) = c :: depair (EtoL (Econs (a, b) x))).
-  rewrite -> IHx.
-  simpl.
-  rewrite -> IHx.
-  reflexivity.
-  simpl.
-  rewrite -> IHx.
-  reflexivity.
-Qed.
-
-Lemma depairlen : forall {A : Set} l, ll (@depair A l) = 2 * ll l.
-Proof.
-  intros A.
-  induction l as [|[a b] l IHl];
-    [ reflexivity
-    | simpl;
-      rewrite -> IHl;
-      omega].
-Qed.
-
-Lemma ElenLen : forall {A : Set} (x : ExpList A), Elen x = ll (EtoL x).
-Proof.
-  intro A;
-  induction x as [| ? a x IHx| ? a b x IHx];
-    (reflexivity
-       || (simpl;
-           rewrite -> depairlen;
-           rewrite <- IHx;
-           omega)).
-Qed.
+Ltac dpr X :=
+    replace X with (fst X, snd X);
+    [| rewrite <- depair;
+       reflexivity].
 
 Inductive BufferedList (A : Set) (maxbuf : nat) : Set :=
 | mkBufferedList : forall
                      (cbuf : nat)
-                     (bb1 bb2 : ExpList A)
+                     (bb1 bb2 : DiffStack A)
                      (l : list A -> list A),
                      BufferedList A maxbuf.
 
-Arguments mkBufferedList [_] _ _ _ _ _.
+Arguments mkBufferedList [_] [_] _ _ _ _.
+
+Definition nilBL (A : Set) (maxbuf : nat) : BufferedList A (S maxbuf) :=
+  @mkBufferedList A (S maxbuf) 0 DSNil DSNil (fun x => x).
+
+Function pushBL {A : Set} {maxbuf : nat} (a : A) (bl : BufferedList A maxbuf) : BufferedList A maxbuf :=
+  match bl with
+    | mkBufferedList cbuf bb1 bb2 l =>
+      match nat_compare cbuf maxbuf with
+      | Lt =>
+        let bb1_ := DSPush a bb1
+        in @mkBufferedList A maxbuf (S cbuf) bb1_ bb2 l
+      | _ =>
+        let (to_r, bb2_1) := (DStoR bb2) in
+        let bb2_2 := ResetDS bb2_1 in
+        let bb2_3 := DSPush a bb2_2 in
+        @mkBufferedList A maxbuf 1 (bb2_3) bb1
+                              (fun x => l (to_r ++ x))
+      end
+  end.
+
+Function thawBL {A : Set} {maxbuf : nat} (bl : BufferedList A maxbuf) :
+  (list A * BufferedList A maxbuf) :=
+  match bl with
+  | @mkBufferedList _ _ cbuf bb1 bb2 l =>
+    let (l1, bb1_) := DStoR bb1 in
+    let (l2, bb2_) := DStoR bb2 in
+    (l (l2 ++ l1), mkBufferedList cbuf bb1_ bb2_ l)
+  end.
+
+Fixpoint unThawBL_ {A : Set} {m} l : BufferedList A (S m) :=
+  match l with
+    | [] => nilBL A m
+    | x :: l_ => pushBL x (unThawBL_ l_)
+  end.
+
+Function unThawBL {A : Set} {m} l : BufferedList A (S m) := unThawBL_ (rev l).
+
+Function nL {A : Set} {maxbuf : nat} (d : nat) (bl : BufferedList A maxbuf) (default : A) :
+  A * BufferedList A maxbuf :=
+  match bl with
+    | mkBufferedList cbuf bb1 bb2 l =>
+      match nat_compare d cbuf with
+      | Lt =>
+        let (nt, bb1_) := DSNth d bb1 default in
+        (nt, mkBufferedList cbuf bb1_ bb2 l)
+      | _ =>
+        let (nt, bb2_) := DSNth (d - cbuf) bb2 default in
+        (nt, mkBufferedList cbuf bb1 bb2_ l)
+      end
+  end.
+
+Lemma nLFakeLinear : forall {A : Set} maxbuf d (bl : BufferedList A maxbuf) (def : A),
+    bl = snd (@nL A maxbuf d bl def).
+Proof.
+  intros.
+  destruct bl.
+  simpl.
+  destruct (d ?= cbuf) eqn:dcbuf.  
+  + dpr (DSNth (d - cbuf) bb2 def).
+    simpl.
+    rewrite -> DSNthFakeLinear.
+    reflexivity.
+  + dpr (DSNth d bb1 def).
+    simpl.
+    rewrite -> DSNthFakeLinear.
+    reflexivity.
+  + dpr (DSNth (d - cbuf) bb2 def).
+    simpl.
+    rewrite -> DSNthFakeLinear.
+    reflexivity.
+Qed.
+    
+Fixpoint SingleBackRef
+         {A : Set} {maxbuf : nat} (bl : BufferedList A maxbuf)
+         (default : A) (len dist : nat) {struct len} :=
+  match len with
+    | 0 => bl
+    | (S len') =>
+      let (nl, bl_) := nL dist bl default in
+      SingleBackRef (pushBL nl bl_) default len' dist
+  end.
+
+Fixpoint SingleBackRefThawed
+         {A : Set} (L : list A) (default : A) (len dist : nat) {struct len} :=
+  match len with
+    | 0 => L
+    | (S len') => SingleBackRefThawed (L ++ [nth dist (rev L) default]) default len' dist
+  end.
+
+Fixpoint BackRefs {A : Set} {m : nat}
+         (swbr : SequenceWithBackRefs A)
+         (bl : BufferedList A m)
+         (q : A) {struct swbr} : BufferedList A m :=
+  match swbr with
+    | [] => bl
+    | (inl c :: swbr') => BackRefs swbr' (pushBL c bl) q
+    | (inr (l, d) :: swbr') => BackRefs swbr' (SingleBackRef bl q l (d - 1)) q
+  end.
+
+Fixpoint BackRefsThawed {A : Set}
+         (swbr : SequenceWithBackRefs A)
+         (bl : list A) (q : A) {struct swbr} : list A :=
+  match swbr with
+    | [] => bl
+    | (inl c :: swbr') => BackRefsThawed swbr' (bl ++ [c]) q
+    | (inr (l, d) :: swbr') =>
+      BackRefsThawed swbr' (SingleBackRefThawed bl q l (d - 1)) q
+  end.
 
 Definition blCorrectL {A : Set} {maxbuf : nat} (bl : BufferedList A maxbuf) :=
   match bl with
@@ -324,13 +211,10 @@ Definition blCorrectB {A : Set} {maxbuf : nat} (bl : BufferedList A maxbuf) :=
     | mkBufferedList cbuf bb1 bb2 l =>
       1 <= maxbuf /\
       cbuf <= maxbuf /\
-      ll (EtoL bb1) = cbuf /\
-      ll (EtoL bb2) <= maxbuf /\
-      (ll (EtoL bb2) < maxbuf -> l [] = [])
+      ll (fst (DStoL bb1)) = cbuf /\
+      ll (fst (DStoL bb2)) <= maxbuf /\
+      (ll (fst (DStoL bb2)) < maxbuf -> l [] = [])
   end.
-
-Definition nilBL (A : Set) (maxbuf : nat) : BufferedList A (S maxbuf) :=
-  mkBufferedList (S maxbuf) 0 Enil Enil (fun x => x).
 
 Lemma blclNil : forall {A : Set} {maxbuf : nat}, blCorrectL (nilBL A maxbuf).
 Proof.
@@ -341,20 +225,9 @@ Qed.
 
 Lemma blcbNil : forall {A : Set} {maxbuf : nat}, blCorrectB (nilBL A maxbuf).
 Proof.
-  intros A m.
-  compute.
-  firstorder.
+  intros;
+  compute; firstorder; rewrite -> NilNil; omega.
 Qed.
-
-Function pushBL {A : Set} {maxbuf : nat} (a : A) (bl : BufferedList A maxbuf) : BufferedList A maxbuf :=
-  match bl with
-    | mkBufferedList cbuf bb1 bb2 l =>
-      match nat_compare cbuf maxbuf with
-        | Lt => mkBufferedList maxbuf (S cbuf) (Econs a bb1) bb2 l
-        | _ => mkBufferedList maxbuf 1 (Econs a Enil) bb1
-                              (fun x => l ((rev (EtoL bb2)) ++ x))
-      end
-  end.
 
 Lemma blclPush : forall {A : Set} {maxbuf : nat} (a : A) (bl : BufferedList A maxbuf),
                   blCorrectL bl -> blCorrectL (pushBL a bl).
@@ -363,11 +236,19 @@ Proof.
   destruct bl as [cbuf bb1 bb2 l].
   unfold pushBL.
   destruct (nat_compare cbuf maxbuf).
+
+
+  replace (DStoR bb2) with (fst (DStoR bb2), snd (DStoR bb2));
+    [| rewrite <- depair;
+       reflexivity].
+  
   unfold blCorrectL.
   unfold blCorrectL in blc.
+
   intro l'.
-  rewrite -> (blc (rev (EtoL bb2) ++ l')).
-  rewrite -> (blc (rev (EtoL bb2) ++ [])).
+  rewrite -> DStoLR.
+  rewrite -> (blc (rev (_ (_ bb2)) ++ l')).
+  rewrite -> (blc (rev (_ (_ bb2)) ++ [])).
   rewrite -> app_nil_r.
   rewrite -> app_assoc.
   reflexivity.
@@ -378,9 +259,15 @@ Proof.
   
   unfold blCorrectL.
   unfold blCorrectL in blc.
+
+  replace (DStoR bb2) with (fst (DStoR bb2), snd (DStoR bb2));
+    [| rewrite <- depair;
+       reflexivity].
+  
   intro l'.
-  rewrite -> (blc (rev (EtoL bb2) ++ l')).
-  rewrite -> (blc (rev (EtoL bb2) ++ [])).
+  rewrite -> DStoLR.  
+  rewrite -> (blc (rev (_ (_ bb2)) ++ l')).
+  rewrite -> (blc (rev (_ (_ bb2)) ++ [])).
   rewrite -> app_nil_r.
   rewrite -> app_assoc.
   reflexivity.
@@ -396,15 +283,20 @@ Lemma blcbPush : forall {A : Set} {maxbuf : nat} (a : A) (bl : BufferedList A ma
   unfold blCorrectB in blc.
   destruct blc as [? [? [blc ?]]].
 
-  assert (ll (EtoL bb1) = maxbuf).
+  assert (ll (fst (DStoL bb1)) = maxbuf).
   rewrite -> blc.
   apply nat_compare_eq.
   trivial.
 
+  dpr (DStoR bb2).
+  
   split. trivial.
   split. trivial.
 
   split.
+  rewrite -> PushLst.
+  rewrite <- ResetDSisNil.
+  rewrite -> NilNil.
   reflexivity.
   split.
   omega.
@@ -422,7 +314,7 @@ Lemma blcbPush : forall {A : Set} {maxbuf : nat} (a : A) (bl : BufferedList A ma
   split. omega.
 
   split.
-  rewrite -> EconsL.
+  rewrite -> PushLst.
   compute.
   compute in b3.
   auto.
@@ -435,15 +327,11 @@ Lemma blcbPush : forall {A : Set} {maxbuf : nat} (a : A) (bl : BufferedList A ma
   omega.
 Qed.
 
-Function thawBL {A : Set} {maxbuf : nat} (bl : BufferedList A maxbuf) : list A :=
-  match bl with
-    | mkBufferedList cbuf bb1 bb2 l => l ((rev (EtoL bb2)) ++ (rev (EtoL bb1)))
-  end.
-
 Lemma thawBLpush : forall {A : Set} {maxbuf : nat}
                           (bl : BufferedList A maxbuf) (a : A),
                      blCorrectL bl ->
-                     thawBL (pushBL a bl) = (thawBL bl) ++ [a].
+                     fst (thawBL (pushBL a bl))
+                     = fst (thawBL bl) ++ [a].
 Proof.
   intros A maxbuf bl a blc.
   destruct bl as [cbuf bb1 bb2 l].
@@ -451,39 +339,59 @@ Proof.
 
   destruct (nat_compare cbuf maxbuf).
   unfold thawBL.
+
+  dpr (DStoR bb2).
+  dpr (DStoR bb1).
+  dpr (DStoR (DSPush a (ResetDS bb2))).
+  dpr (DStoR (DSPush a (ResetDS (snd (DStoR bb2))))).
+  
+  rewrite -> DStoLR.
   rewrite -> blc.
-  rewrite -> (blc (rev (EtoL bb2) ++ rev (EtoL bb1))).
-  rewrite -> EconsL.
+  rewrite -> (blc (rev (fst (DStoL bb2)) ++ (fst (DStoR bb1)))).
+  rewrite -> DStoLR.
+  rewrite -> DStoLR.
+  rewrite -> PushLst.
+  rewrite <- ResetDSisNil.
+  rewrite -> NilNil.
   rewrite -> cons_rev_1.
   repeat (rewrite -> app_assoc).
   rewrite -> app_nil_r.
   reflexivity.
 
   unfold thawBL.
+
+  dpr (DStoR bb2).
+  dpr (DStoR bb1).
+  dpr (DStoR (DSPush a bb1)).
   rewrite -> blc.
-  rewrite -> (blc (rev (EtoL bb2) ++ rev (EtoL bb1))).
-  rewrite -> EconsL.
+  rewrite -> DStoLR.
+  rewrite -> DStoLR.
+  rewrite -> DStoLR.
+  rewrite -> (blc (rev (fst (DStoL bb2)) ++ rev (fst (DStoL bb1)))).
+  rewrite -> PushLst.
   rewrite -> cons_rev_1.
   repeat (rewrite -> app_assoc).
   reflexivity.
 
   unfold thawBL.
+
+  dpr (DStoR bb2).
+  dpr (DStoR (DSPush a (ResetDS bb2))).
+  dpr (DStoR bb1).
+  dpr (DStoR (DSPush a (ResetDS (snd (DStoR bb2))))).
+  rewrite -> DStoLR.
   rewrite -> blc.
-  rewrite -> (blc (rev (EtoL bb2) ++ rev (EtoL bb1))).
-  rewrite -> EconsL.
+  rewrite -> DStoLR.
+  rewrite -> (blc (rev (fst (DStoL bb2)) ++ rev (fst (DStoL bb1)))).
+  rewrite -> DStoLR.
+  rewrite -> PushLst.
+  rewrite <- ResetDSisNil.
+  rewrite -> NilNil.
   rewrite -> cons_rev_1.
   repeat (rewrite -> app_assoc).
   rewrite -> app_nil_r.
   reflexivity.
 Qed.
-
-Fixpoint unThawBL_ {A : Set} {m} l : BufferedList A (S m) :=
-  match l with
-    | [] => nilBL A m
-    | x :: l_ => pushBL x (unThawBL_ l_)
-  end.
-
-Function unThawBL {A : Set} {m} l : BufferedList A (S m) := unThawBL_ (rev l).
 
 Lemma thawUnThawCorrect : forall {A : Set} {m} l, blCorrectL (@unThawBL A m l).
 Proof.
@@ -498,10 +406,14 @@ Proof.
   exact IHl.
 Qed.
 
-Lemma thawUnThawBL : forall {A : Set} {m} l, l = thawBL (@unThawBL A m l).
+Lemma thawUnThawBL : forall {A : Set} {m} l, l = fst (thawBL (@unThawBL A m l)).
 Proof.
   intros A m.
-  apply (rev_ind (fun l => l = thawBL (unThawBL l))).
+  apply (rev_ind (fun l => l = fst (thawBL (unThawBL l)))).
+  simpl.
+  dpr (DStoR (@DSNil A)).
+  rewrite -> DStoLR.
+  rewrite -> NilNil.
   reflexivity.
   intros x l IHl.
   unfold unThawBL.
@@ -514,151 +426,116 @@ Proof.
   apply thawUnThawCorrect.
 Qed.
 
-Function nL {A : Set} {maxbuf : nat} (d : nat) (bl : BufferedList A maxbuf) (default : A) : A :=
-  match bl with
-    | mkBufferedList cbuf bb1 bb2 l =>
-      match nat_compare d cbuf with
-        | Lt => Enth d bb1 default
-        | _ => Enth (d - cbuf) bb2 default
-      end
-  end.
-
 Lemma nLnth : forall {A : Set} {maxbuf : nat}
                      (d : nat) (bl : BufferedList A maxbuf) (default : A),
                 blCorrectL bl -> blCorrectB bl ->
-                d < maxbuf -> nL d bl default = nth d (rev (thawBL bl)) default.
+                d < maxbuf -> fst (nL d bl default) = nth d (rev (fst (thawBL bl))) default.
 Proof.
   intros A m d bl.
   elim bl.
   intros cbuf bb1 bb2 l default cl [mg1 [clm [lb1cb [lb2m lb2l]]]] dm.
   unfold blCorrectL in cl.
   unfold nL.
-
-  destruct (nat_compare d cbuf) eqn:ncdc;
-    (( assert (d < cbuf);
-       [ apply nat_compare_lt;
-         exact ncdc
-       | unfold thawBL;
-         rewrite -> cl;
-         rewrite <- rev_app_distr;
-         rewrite -> rev_app_distr;
-         rewrite -> rev_involutive;
-         rewrite -> app_nth1;
-         [ rewrite -> app_nth1;
-           [ apply Enth_nth
-           | omega ]
-         | rewrite -> app_length;
-           omega ]])
-       ||
-       (unfold thawBL;
-        rewrite -> cl;
-        rewrite <- rev_app_distr;
-        rewrite -> rev_app_distr;
-        rewrite -> rev_involutive;
-        destruct (lt_dec d (ll (EtoL bb1 ++ EtoL bb2))) as [l0 | l0];
-        [ rewrite -> (app_nth1 _ _ _ l0);
-          rewrite -> app_nth2;
-          [ rewrite -> lb1cb; apply Enth_nth
-          | rewrite -> lb1cb;
-            solve [ assert (d > cbuf);
+  
+  destruct (nat_compare d cbuf) eqn:ncdc.
+  - dpr (DSNth (d - cbuf) bb2 default).
+    unfold thawBL.
+    dpr (DStoR bb1).
+    dpr (DStoR bb2).
+    rewrite -> cl.
+    rewrite -> DStoLR.
+    rewrite -> DStoLR.
+    simpl.
+    rewrite <- rev_app_distr.
+    rewrite -> rev_app_distr.
+    rewrite -> rev_involutive.
+    destruct (lt_dec d (ll (fst (DStoL bb1) ++ fst (DStoL bb2)))) as [l0 | l0].
+    + rewrite -> (app_nth1 _ _ _ l0).
+      rewrite -> app_nth2.
+      * rewrite -> lb1cb.
+        apply DSNth_nth.
+      * rewrite -> lb1cb.
+        solve [ assert (d > cbuf);
                     [ apply nat_compare_gt; trivial | omega]
                   | assert (d = cbuf);
-                    [ apply nat_compare_eq; trivial | omega]]]
-        | assert (lnil : l [] = []);
-          [ apply lb2l;
-            rewrite -> app_length in l0;
-            omega
-          | rewrite -> lnil;
-            rewrite -> app_nil_r;
-            rewrite -> Enth_nth;
-            rewrite -> nth_overflow;
-            [ rewrite -> nth_overflow;
-              [ reflexivity | omega ]
-            | rewrite -> app_length in l0;
-              omega]]])).
-Qed.
-  
+                    [ apply nat_compare_eq; trivial | omega]].
+    + assert (lnil : l [] = []).
+      * apply lb2l.
+        rewrite -> app_length in l0.
+        omega.
+      * rewrite -> lnil.
+        rewrite -> app_nil_r.
+        rewrite -> DSNth_nth.
+        rewrite -> nth_overflow.
+        -- rewrite -> nth_overflow.
+           ++ reflexivity.
+           ++ omega.
+        -- rewrite -> app_length in l0.
+           omega.
+  - assert (d < cbuf).
+    + apply nat_compare_lt.
+      exact ncdc.
+    + unfold thawBL.
+      dpr (DSNth d bb1 default).
+      dpr (DStoR bb1).
+      dpr (DStoR bb2).
+      rewrite -> DStoLR.
+      rewrite -> DStoLR.
+      simpl.
+      rewrite -> cl.
+      rewrite <- rev_app_distr.
+      rewrite -> rev_app_distr.
+      rewrite -> rev_involutive.
+      rewrite -> app_nth1.
+      * rewrite -> app_nth1.
+        apply DSNth_nth.
+        omega.
+      * rewrite -> app_length.
+        omega.
+  - dpr (DSNth (d - cbuf) bb2 default).
+    unfold thawBL.
+    dpr (DStoR bb1).
+    dpr (DStoR bb2).
+    rewrite -> DStoLR.
+    rewrite -> DStoLR.
+    rewrite -> cl.
+    simpl.
+    rewrite <- rev_app_distr.
+    rewrite -> rev_app_distr.
+    rewrite -> rev_involutive.
+    destruct (lt_dec d (ll (fst (DStoL bb1) ++ fst (DStoL bb2)))) as [l0 | l0].
+    + rewrite -> (app_nth1 _ _ _ l0).
+      rewrite -> app_nth2.
+      * rewrite -> lb1cb.
+        apply DSNth_nth.
+      * rewrite -> lb1cb.
 
-(* TODO: this belongs somewhere else *)
-Lemma nthNthLast : forall {A : Set} (l : list A) (a b : A) (n : nat),
-                     nth n (rev l) a = b -> n < ll l ->
-                     nthLast (S n) l b.
-Proof.
-  intros A.
-  apply (rev_ind (fun l => forall (a b : A) (n : nat),
-   nth n (rev l) a = b -> n < ll l -> nthLast (S n) l b)).
-
-  simpl. intros. omega.
-
-  intros x l IHl.
-  intros a b n nthn nll.
-  rewrite -> rev_app_distr in nthn.
-  destruct n as [|n].
-  simpl in nthn.
-  rewrite <- nthn.
-  apply (makeNthLast l [] x).
-
-  assert (Q : nthLast (S n) l b).
-  eapply IHl.
-  simpl in nthn.
-  exact nthn.
-  rewrite -> app_length in nll.
-  simpl in nll.
-  omega.
-  inversion Q as [B C D E F G].
-  assert (K1 : S (S (ll C)) = S (ll (C ++ [x]))).
-  rewrite -> app_length.
-  simpl.
-  omega.
-  rewrite -> K1.
-  rewrite <- app_assoc.
-  rewrite <- app_comm_cons.
-  constructor.
-Qed.
-
-(* TODO: this belongs somewhere else *)
-Lemma nthLastNth : forall {A : Set} (l : list A) (a b : A) (n : nat),
-                     nthLast (S n) l b -> nth n (rev l) a = b.
-Proof.
-  intros A l a b n nlst.
-  inversion nlst.
-  rewrite -> rev_nth.
-  rewrite -> app_length.
-  simpl.
-  assert (K0 : ll L + S (ll M) - S (ll M) = ll L).
-  omega.
-  rewrite -> K0.
-  assert (K1 : b :: M = [b] ++ M).
-  reflexivity.
-  rewrite -> K1.
-  rewrite -> app_assoc.
-  rewrite -> app_nth1.
-  assert (K2 : ll L = ll (L ++ [b]) - 1).
-  rewrite -> app_length.
-  simpl.
-  omega.
-  rewrite -> K2.
-  rewrite <- rev_nth.
-  rewrite -> rev_app_distr.
-  reflexivity.
-  rewrite -> app_length.
-  simpl.
-  omega.
-  rewrite -> app_length.
-  simpl.
-  omega.
-  rewrite -> app_length.
-  simpl.
-  omega.
+        solve [ assert (d > cbuf);
+                    [ apply nat_compare_gt; trivial | omega]
+                  | assert (d = cbuf);
+                    [ apply nat_compare_eq; trivial | omega]].
+    + assert (lnil : l [] = []).
+      * apply lb2l.
+        rewrite -> app_length in l0.
+        omega.
+      * rewrite -> lnil.
+        rewrite -> app_nil_r.
+        rewrite -> DSNth_nth.
+        rewrite -> nth_overflow.
+        -- rewrite -> nth_overflow.
+           ++ reflexivity.
+           ++ omega.
+        -- rewrite -> app_length in l0.
+           omega.
 Qed.
 
 Lemma nthLastNL : forall {A : Set} {maxbuf : nat} (b : BufferedList A maxbuf) n q r,
                     blCorrectL b -> blCorrectB b -> (n < maxbuf) ->
-                    nthLast (S n) (thawBL b) r ->
-                    nL n b q = r.
+                    nthLast (S n) (fst (thawBL b)) r ->
+                    fst (nL n b q) = r.
 Proof.
   intros A m b n q r cL cB nm nl.
-  assert (R : nth n (rev (thawBL b)) q = r).
+  assert (R : nth n (rev (fst (thawBL b))) q = r).
   apply nthLastNth.
   exact nl.
   rewrite <- R.
@@ -669,10 +546,10 @@ Proof.
 Qed.
 
 Lemma nLnthLast : forall {A : Set} {maxbuf : nat} (b : BufferedList A maxbuf) n q r,
-                    n < maxbuf -> n < ll (thawBL b) ->
+                    n < maxbuf -> n < ll (fst (thawBL b)) ->
                     blCorrectL b -> blCorrectB b ->
-                    nL n b q = r ->
-                    nthLast (S n) (thawBL b) r. 
+                    fst (nL n b q) = r ->
+                    nthLast (S n) (fst (thawBL b)) r.
 Proof.
   intros A m b n q r nm nt cL cB nl.
   eapply nthNthLast.
@@ -683,21 +560,6 @@ Proof.
   trivial.
   trivial.
 Qed.
-
-Fixpoint SingleBackRef
-         {A : Set} {maxbuf : nat} (bl : BufferedList A maxbuf)
-         (default : A) (len dist : nat) {struct len} :=
-  match len with
-    | 0 => bl
-    | (S len') => SingleBackRef (pushBL (nL dist bl default) bl) default len' dist
-  end.
-
-Fixpoint SingleBackRefThawed
-         {A : Set} (L : list A) (default : A) (len dist : nat) {struct len} :=
-  match len with
-    | 0 => L
-    | (S len') => SingleBackRefThawed (L ++ [nth dist (rev L) default]) default len' dist
-  end.
 
 Lemma SingleBackRefThawedInsideOut :
   forall {A : Set} (L : list A) (default : A) (len dist : nat),
@@ -722,8 +584,8 @@ Lemma SingleBackRefThawedCorrect :
   forall {A : Set} {maxbuf : nat} (bl : BufferedList A maxbuf)
          (default : A) (len dist : nat),
     blCorrectL bl -> blCorrectB bl -> dist < maxbuf -> 
-    SingleBackRefThawed (thawBL bl) default len dist =
-    thawBL (SingleBackRef bl default len dist).
+    SingleBackRefThawed (fst (thawBL bl)) default len dist =
+    fst (thawBL (SingleBackRef bl default len dist)).
 Proof.
   intros A m bl default l d.
   revert l d bl default.
@@ -733,16 +595,21 @@ Proof.
 
   intros.
   simpl.
+  dpr (nL d bl default).
   rewrite <- IHl.
   rewrite -> thawBLpush.
   rewrite -> nLnth.
+  rewrite <- nLFakeLinear.
   reflexivity.
   auto.
   auto.
   auto.
+  rewrite <- nLFakeLinear.
   auto.
+  rewrite <- nLFakeLinear.
   apply blclPush.
   auto.
+  rewrite <- nLFakeLinear.
   apply blcbPush.
   auto.
   auto.
@@ -759,8 +626,10 @@ Proof.
 
   intros d bl dflt blc.
   simpl.
+  dpr (nL d bl dflt).
   apply IHl.
   apply blclPush.
+  rewrite <- nLFakeLinear.
   trivial.
 Qed.
 
@@ -775,8 +644,10 @@ Proof.
 
   intros d bl dflt blc.
   simpl.
+  dpr (nL d bl dflt).
   apply IHl.
   apply blcbPush.
+  rewrite <- nLFakeLinear.
   trivial.
 Qed.
 
@@ -826,9 +697,9 @@ Qed.
 Lemma SingleBackRefCorrect :
   forall {A} {m} l d (bl : BufferedList A m) dflt,
     blCorrectL bl -> blCorrectB bl ->
-    d < ll (thawBL bl) ->
+    d < ll (fst (thawBL bl)) ->
     d < m ->
-    ResolveBackReference l (S d) (thawBL bl) (thawBL (SingleBackRef bl dflt l d)).
+    ResolveBackReference l (S d) (fst (thawBL bl)) (fst (thawBL (SingleBackRef bl dflt l d))).
 Proof.
   intros A m l d bl dflt blcl blcb dllt dm.
   rewrite <- SingleBackRefThawedCorrect.
@@ -839,26 +710,6 @@ Proof.
   trivial.
 Qed.
 
-Fixpoint BackRefs {A : Set} {m : nat}
-         (swbr : SequenceWithBackRefs A)
-         (bl : BufferedList A m)
-         (q : A) {struct swbr} : BufferedList A m :=
-  match swbr with
-    | [] => bl
-    | (inl c :: swbr') => BackRefs swbr' (pushBL c bl) q
-    | (inr (l, d) :: swbr') => BackRefs swbr' (SingleBackRef bl q l (d - 1)) q
-  end.
-
-Fixpoint BackRefsThawed {A : Set}
-         (swbr : SequenceWithBackRefs A)
-         (bl : list A) (q : A) {struct swbr} : list A :=
-  match swbr with
-    | [] => bl
-    | (inl c :: swbr') => BackRefsThawed swbr' (bl ++ [c]) q
-    | (inr (l, d) :: swbr') =>
-      BackRefsThawed swbr' (SingleBackRefThawed bl q l (d - 1)) q
-  end.
-
 Lemma BackRefsThawedCorrect :
   forall {A : Set} (minlen maxlen mindist maxdist : nat)
          (swbr : SequenceWithBackRefs A)
@@ -866,7 +717,8 @@ Lemma BackRefsThawedCorrect :
     BackRefsBounded minlen maxlen (S mindist) maxdist swbr ->
     blCorrectL bl ->
     blCorrectB bl ->
-    thawBL (BackRefs swbr bl q) = BackRefsThawed swbr (thawBL bl) q.
+    fst (thawBL (BackRefs swbr bl q))
+    = BackRefsThawed swbr (fst (thawBL bl)) q.
 Proof.
   intros A minlen maxlen mindist maxdist swbr.
   induction swbr as [| [a | [l d]] swbr IHswbr].
@@ -1400,12 +1252,17 @@ Lemma BackRefsCorrect :
   forall {A : Set} (Adec : forall x y : A, {x = y} + {x <> y})
          (minlen maxlen mindist maxdist : nat) swbr q (bl : BufferedList A (S maxdist)),
     BackRefsBounded (S minlen) maxlen (S mindist) (S maxdist) swbr ->
-    (ResolveBackReferences swbr (thawBL bl) <-> (BackRefsOk swbr /\
-                                                thawBL (BackRefs swbr (nilBL A maxdist) q) = thawBL bl)).
+    (ResolveBackReferences swbr (fst (thawBL bl)) <-> (BackRefsOk swbr /\
+                                               (fst (thawBL (BackRefs swbr (nilBL A maxdist) q))) = fst (thawBL bl))).
 Proof.
   intros A Adec minlen maxlen mindist maxdist swbr q bl brb.
 
   erewrite -> BackRefsThawedCorrect.
+  simpl.
+  dpr (DStoR (@DSNil A)).
+  rewrite -> DStoLR.
+  rewrite -> NilNil.
+  simpl.
   eapply BackRefsCorrect'.
   eauto.
   eauto.
@@ -1427,7 +1284,7 @@ Proof.
   destruct (ManyBlocksStrongDec 0 l) as [[swbr [l' [l'' [lapp mb]]]] | [reason no]].
   destruct (BackRefsOkDec swbr) as [brok | brnok].
   apply inl.
-  exists (thawBL (@BackRefs Byte (d"32768") swbr (nilBL _ _) (Bvector.Bvect_false _))).
+  exists (fst (thawBL (@BackRefs Byte (d"32768") swbr (nilBL _ _) (Bvector.Bvect_false _)))).
   exists l'.
   exists l''.
   split.
@@ -1482,59 +1339,17 @@ Proof.
   exact reason.
 Defined.
 
-Extraction Language Haskell.
+Unset Extraction Optimize.
+Unset Extraction AutoInline.
 
-(** Strings *)
+(* XC1 *)
+Extract Constant DiffStack "q" => "DiffStackT.DiffStack q".
+Extract Constant DSPush => "DiffStackT.push".
+Extract Constant DSNth => "DiffStackT.nth".
+Extract Constant DSNil => "DiffStackT.newDiffStack".
+Extract Constant DStoL => "DiffStackT.toList".
+Extract Constant DStoR => "DiffStackT.toReverseList".
+Extract Constant ResetDS => "DiffStackT.reset".
+(* XC2 *)
 
-Extract Inductive ascii => "Data.Char.Char" ["Extraction.makechar"] "Extraction.charrec".
-
-Extract Inductive string => "[Data.Char.Char]" ["[]" "(:)"] "Extraction.stringrec".
-
-(** Several simple types mapped to Haskell-standard-types *)
-
-Extract Inductive prod => "(,)" ["(,)"] "Extraction.prodrec".
-Extract Constant fst => "Prelude.fst".
-Extract Constant snd => "Prelude.snd".
-
-Extract Inductive option => "Data.Maybe.Maybe" [ "Data.Maybe.Just" "Data.Maybe.Nothing" ].
-
-Extract Inductive sum => "Prelude.Either" ["Prelude.Left" "Prelude.Right"].
-
-Extract Inductive bool => "Prelude.Bool" ["Prelude.True" "Prelude.False"].
-
-Extract Inductive sumbool => "Prelude.Bool" ["Prelude.True" "Prelude.False"] "Extraction.sumboolrec".
-
-Extract Inductive sumor => "Data.Maybe.Maybe" [ "Data.Maybe.Just" "Data.Maybe.Nothing" ]
-                                              "Extraction.sumorrec".
-
-Extract Inductive comparison => "Extraction.Cmp" ["Extraction.Eq" "Extraction.Lt" "Extraction.Gt"]
-                                                 "Extraction.cmprec".
-
-
-(** Fin is just nat with an index that is not relevant *)
-Extract Inductive fin => "Extraction.Fin" [ "Extraction.fin1" "Extraction.fins" ] "Extraction.finrec".
-
-(** Constants for nat *)
-
-Extract Inductive nat => "Prelude.Int" ["0" "Extraction.natinc"] "Extraction.natrec".
-
-Extract Constant lt_eq_lt_dec => "Extraction.lt_eq_lt_dec".
-
-Extract Constant le_lt_dec => "(Prelude.<=)".
-
-Extract Constant nat_compare => "Extraction.nat_compare".
-
-Extract Constant plus => "(Prelude.+)".
-
-Extract Constant mult => "(Prelude.*)".
-
-Extract Constant minus => "Extraction.natminus".
-
-Extract Constant pow => "(Prelude.^)".
-
-Extract Inductive list => "[]" [ "[]" "(\ a b -> a : b)" ]
-                               "(\ n c l -> case l of { [] -> n [] ; (b : bs) -> c b bs })".
-
-Extract Inductive vec => "Extraction.Vec" ["Extraction.vecNil" "Extraction.vecCons"] "Extraction.vecRec".
-
-Extraction "EfficientDecompress/EfficientDecompress.hs" EfficientDeflate.
+Extraction "DiffStack.hs" EfficientDeflate.

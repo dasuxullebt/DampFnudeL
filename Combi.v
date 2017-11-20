@@ -5,12 +5,62 @@ Require Import Coq.Vectors.Vector.
 Require Import Coq.Lists.List.
 Require Import Coq.QArith.Qfield.
 Require Import Program.
+Require Import EqdepFacts.
+Require Import Eqdep_dec.
 
 Require Import Shorthand.
 Require Import Lex.
 Require Import Prefix.
 Require Import Repeat.
 Require Import Transports.
+
+Module NatDec <: DecidableSet.
+  Definition U := nat.
+  Lemma eq_dec : forall (x y : U), {x = y} + {x <> y}.
+  Proof. decide equality. Qed.
+End NatDec.
+
+Module NatEqDep := DecidableEqDepSet(NatDec).
+
+Ltac depelim_fin x :=
+  match type of x with
+  | fin ?n =>
+      let m := fresh "n" in
+      let y := fresh x in
+      let H := fresh in
+      match goal with
+      |- ?gl =>
+        enough (forall (m : nat) (y : fin m), existT fin m y = existT fin n x ->
+          gl) as H by (eapply H; reflexivity);
+        destruct y;
+        (intros H;
+          let H' := fresh H in
+          pose proof (eq_sigT_fst H) as H';
+          inversion H'; subst; clear H';
+          apply NatEqDep.inj_pairT2 in H; subst)
+      end
+  end.
+
+Fixpoint array_set {A} {n : nat} (a : vec A n) (b : fin n) (d : A) {struct a} :
+  {c : vec A n | forall (q : fin n), (q = b -> Vnth c q = d) /\ ((q <> b) -> Vnth c q = Vnth a q)}.
+Proof.
+  destruct a.
+  - abstract (inversion b).
+  - depelim_fin b.
+    + exists (Vcons d n a).
+      intros; split.
+      * now intros ->.
+      * intros Hq. depelim_fin q.
+        -- now elim Hq.
+        -- reflexivity.
+    + destruct (array_set _ _ a b0 d) as [rec Hrec].
+      exists (Vcons h n rec).
+      intros; split.
+      * intros ->. now apply Hrec.
+      * intros. depelim_fin q.
+        -- reflexivity.
+        -- apply Hrec. contradict H. now f_equal.
+Defined.
 
 Local Open Scope nat.
 
@@ -642,45 +692,57 @@ Function car {A} (a : A) (l : list A) : A :=
     | (x :: l) => x
   end.
 
-Lemma take : forall (n : nat) (l : LB), ((n <= ll l)%nat) -> {l' | prefix l' l /\ ll l' = n}.
+Fixpoint take {A : Set} (n : nat) (l : list A) : list A :=
+  match n with
+  | 0 => []
+  | S n_ => match l with
+            | [] => []
+            | x :: l_ => x :: take n_ l_
+            end
+  end.
+
+Lemma prefix_take : forall {A : Set} (n : nat) (l : list A), prefix (take n l) l.
 Proof.
-  refine (fix f n l le :=
-            match (n, l) as M return ((n, l) = M -> _) with
-              | (0, _) => fun eq => _
-              | ((S n'), nil) => fun eq => _
-              | ((S n'), x :: L) => fun eq => _                                 
-            end eq_refl).
-  inversion eq.
-  exists Bnil.
-  split.
-  exists y0.
-  apply app_nil_l.
-  reflexivity.
+  intro A;
+  induction n as [|n IHn];
+  [ intro;
+    eexists;
+    reflexivity
+  | intro l;
+    destruct l as [|x l IHl];
+    [ eexists;
+      reflexivity
+    | simpl;
+      apply prefix_cons;
+      apply IHn]].
+Qed.  
 
-  inversion eq.
-  contradict le.
-  apply lt_not_le.
-  replace l with Bnil.
-  replace n with (S n').
-  apply lt_0_Sn.
+Lemma take_le_length : forall {A : Set} n (l : list A), (n <= ll l)%nat -> ll (take n l) = n.
+Proof.
+  intro A;
+  induction n as [|n IHn];
+  [ reflexivity
+  | destruct l as [|x l];
+    [ simpl;
+      omega
+    | simpl;
+      intro xle;
+      rewrite -> IHn;
+      [ reflexivity
+      | omega ]]].
+Qed.  
+  
+Lemma take_lemma : forall (n : nat) (l : LB), ((n <= ll l)%nat) -> {l' | prefix l' l /\ ll l' = n}.
+Proof.
 
-  inversion eq.
-  destruct (f n' L) as [l'' [l1 l2]].
-  apply le_S_n.
-  replace (S (ll L)) with (ll (x :: L)).
-  replace (S n') with n.
-  replace (x :: L) with l.
-  auto.
-  auto.
-  exists (x :: l'').
+  intros n l nle.
+  exists (take n l).
   split.
-  destruct l1 as [c cc].
-  exists c.
-  rewrite <- cc.
-  reflexivity.
-  rewrite <- l2.
-  auto.
-Defined.
+
+  apply prefix_take.
+  apply take_le_length.
+  exact nle.
+Defined.  
 
 Lemma lexcut : forall a b, lex a b -> {x | lex (a ++ x) b /\ ll (a ++ x) = ll b} +
                                       {x | ll x = ll b /\ prefix x a /\ lex x b}.
@@ -775,7 +837,7 @@ Proof.
   intros lba.
   apply inr.
   assert (H:{x | prefix x a /\ ll x = ll b}).
-  apply take.
+  apply take_lemma.
   apply lt_le_weak.
   apply lba.
   elim H.
@@ -798,15 +860,15 @@ Proof.
   (* todo: inefficient *)
   intros m.
   induction m.
-  exists (Vnil (fin 0)).
+  eexists Vnil.
   intros q. inversion q.
   elim IHm.
   intros x fq.
-  exists (Vcons _ FinF1 _ (Vmap FinFS x)).
+  exists (Vcons FinF1 _ (Vmap FinFS x)).
   intros q.
   dependent induction q.
   auto.
-  assert (H : Vnth (Vcons (fin (S m)) FinF1 m (Vmap FinFS x)) (FinFS q) =
+  assert (H : Vnth (Vcons FinF1 m (Vmap FinFS x)) (FinFS q) =
           Vnth (Vmap FinFS x) q).
   auto.
   rewrite -> H.
@@ -1081,7 +1143,7 @@ Proof.
   intros x qex.
   apply inl.
   exists (FinFS x).
-  replace (Vnth (Vcons A h n e) (FinFS x)) with (Vnth e x).
+  replace (Vnth (Vcons h n e) (FinFS x)) with (Vnth e x).
   apply qex.
   reflexivity.
   intros nexn0.
@@ -1125,7 +1187,7 @@ Proof.
   intros x qex.
   apply inl.
   exists (FinFS x).
-  replace (Vnth (Vcons A h n e) (FinFS x)) with (Vnth e x).
+  replace (Vnth (Vcons h n e) (FinFS x)) with (Vnth e x).
   apply qex.
   reflexivity.
   intros nexn0.
@@ -1325,14 +1387,14 @@ Proof.
   apply app_assoc.
 Defined.
 
-Lemma array_set : forall {A} {n : nat} (a : vec A n) (b : fin n) (d : A),
+(*Lemma array_set : forall {A} {n : nat} (a : vec A n) (b : fin n) (d : A),
                     {c | forall q, ((q = b) -> Vnth c q = d) /\ ((q <> b) -> Vnth c q = Vnth a q)}.
 Proof.
   intros A n a b d.
   dependent induction a.
   inversion b.
   dependent induction b.
-  exists (Vcons A d n a).
+  exists (Vcons d n a).
   intros q.
   split.
   intros eq.
@@ -1347,7 +1409,7 @@ Proof.
   apply IHa.
   elim X.
   intros c' c'x.
-  exists (Vcons A h n c').
+  exists (Vcons h n c').
   intros q.
   split.
   intros eq.
@@ -1363,7 +1425,7 @@ Proof.
   apply neq.
   apply c'x.
   apply neq2.
-Defined.
+Defined. *)
 
 Lemma forall_app : forall {A} (a b : list A) R, Forall R (a ++ b) -> Forall R a /\ Forall R b.
 Proof.
@@ -1598,12 +1660,12 @@ Defined.
 Lemma nullVec : forall (n : nat), {c : VecLB n | forall q, Vnth c q = Bnil}.
 Proof.
   induction n.
-  exists (Vnil LB).
+  eexists Vnil.
   intros q.
   inversion q.
   elim IHn.
   intros x s.
-  exists (Vcons _ Bnil _ x).
+  exists (Vcons Bnil _ x).
   intros q.
   dependent induction q.
   reflexivity.
@@ -1853,18 +1915,18 @@ Proof.
   replace h with h0.
   replace t with u.
   reflexivity.
-  assert (H0 : to_list (Vcons A h m t) = h :: to_list t).
+  assert (H0 : to_list (Vcons h m t) = h :: to_list t).
   reflexivity.
-  assert (H1: to_list (Vcons A h0 m u) = h0 :: to_list u).
+  assert (H1: to_list (Vcons h0 m u) = h0 :: to_list u).
   reflexivity.
   apply IHm.
   rewrite -> H1 in eq.
   rewrite -> H0 in eq.
   inversion eq.
   reflexivity.
-  assert (H0 : to_list (Vcons A h m t) = h :: to_list t).
+  assert (H0 : to_list (Vcons h m t) = h :: to_list t).
   reflexivity.
-  assert (H1: to_list (Vcons A h0 m u) = h0 :: to_list u).
+  assert (H1: to_list (Vcons h0 m u) = h0 :: to_list u).
   reflexivity.
   rewrite -> H1 in eq.
   rewrite -> H0 in eq. 
@@ -2010,12 +2072,12 @@ Proof.
     refine (fix f l n (x : (exists l' l'' : list A, ll l' = n /\ l = l' ++ [k] ++ l'')) {struct l} :=
               match l as L return (l=L->_) with
                 | [] => fun eqL => _
-                | (x :: xs) => fun eqL => match n as N return (n=N->_) with
-                                            | 0 => fun eqN => _
-                                            | S n' => fun eqN => _
-                                          end eq_refl
+                | (x_ :: xs) => fun eqL => match n as N return (n=N->_) with
+                                           | 0 => fun eqN => _
+                                           | S n' => fun eqN => _
+                                           end eq_refl
               end eq_refl);
-    [ destruct x as [l' [l'' [lll' lapp]]];
+  [ destruct x as [l' [l'' [lll' lapp]]];
       rewrite -> eqL in lapp;
       destruct l'; inversion lapp
     | destruct x as [l' [l'' [lll' lapp]]];
@@ -2031,7 +2093,8 @@ Proof.
         inversion lll'
       | simpl;
         apply f;
-        exists l' l'';
+        exists l';
+        exists l'';
         split;
         [ simpl in lll'; omega
         | rewrite -> eqL in lapp;
@@ -2070,4 +2133,82 @@ Proof.
   intro nerr; destruct n; inversion nerr.
   intro Q; inversion Q; reflexivity.
   simpl; apply f.
+Qed.
+
+(* NTHLAST1 *)				     
+Inductive nthLast {A : Set}
+ : forall (n : nat) (L : list A) (a : A), Prop :=
+| makeNthLast : forall L M a, nthLast (ll (a :: M)) (L ++ a :: M) a.
+(* NTHLAST2 *)
+
+
+Lemma nthNthLast : forall {A : Set} (l : list A) (a b : A) (n : nat),
+                     nth n (rev l) a = b -> n < ll l ->
+                     nthLast (S n) l b.
+Proof.
+  intros A.
+  apply (rev_ind (fun l => forall (a b : A) (n : nat),
+   nth n (rev l) a = b -> n < ll l -> nthLast (S n) l b)).
+
+  simpl. intros. omega.
+
+  intros x l IHl.
+  intros a b n nthn nll.
+  rewrite -> rev_app_distr in nthn.
+  destruct n as [|n].
+  simpl in nthn.
+  rewrite <- nthn.
+  apply (makeNthLast l [] x).
+
+  assert (Q : nthLast (S n) l b).
+  eapply IHl.
+  simpl in nthn.
+  exact nthn.
+  rewrite -> app_length in nll.
+  simpl in nll.
+  omega.
+  inversion Q as [B C D E F G].
+  assert (K1 : S (S (ll C)) = S (ll (C ++ [x]))).
+  rewrite -> app_length.
+  simpl.
+  omega.
+  rewrite -> K1.
+  rewrite <- app_assoc.
+  rewrite <- app_comm_cons.
+  constructor.
+Qed.
+
+Lemma nthLastNth : forall {A : Set} (l : list A) (a b : A) (n : nat),
+                     nthLast (S n) l b -> nth n (rev l) a = b.
+Proof.
+  intros A l a b n nlst.
+  inversion nlst.
+  rewrite -> rev_nth.
+  rewrite -> app_length.
+  simpl.
+  assert (K0 : ll L + S (ll M) - S (ll M) = ll L).
+  omega.
+  rewrite -> K0.
+  assert (K1 : b :: M = [b] ++ M).
+  reflexivity.
+  rewrite -> K1.
+  rewrite -> app_assoc.
+  rewrite -> app_nth1.
+  assert (K2 : ll L = ll (L ++ [b]) - 1).
+  rewrite -> app_length.
+  simpl.
+  omega.
+  rewrite -> K2.
+  rewrite <- rev_nth.
+  rewrite -> rev_app_distr.
+  reflexivity.
+  rewrite -> app_length.
+  simpl.
+  omega.
+  rewrite -> app_length.
+  simpl.
+  omega.
+  rewrite -> app_length.
+  simpl.
+  omega.
 Qed.
